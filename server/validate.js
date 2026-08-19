@@ -3,6 +3,7 @@
  * 前端传来的一切都不可信 —— 这里是唯一的守门口，通过后下游可放心使用。
  */
 import { LIMITS, DEFAULTS } from './config.js';
+import { composeCaption, getStyle } from './styles.js';
 
 export class ValidationError extends Error {
   constructor(field, message) {
@@ -76,9 +77,26 @@ export function validateGenerateRequest(body) {
     throw new ValidationError('body', '请求体必须是 JSON 对象');
   }
 
-  const caption = requireString(body.caption, 'caption', {
-    min: 1, max: LIMITS.maxCaptionChars,
-  });
+  // 曲风是"告诉模型这是什么类型的音乐"的分类信号，
+  // brief 是用户自己对这一首的想法。最终 caption 由二者合成，
+  // 除非用户改过合成结果（captionOverride）——那就以他改的为准。
+  const styleId = typeof body.styleId === 'string' && getStyle(body.styleId)
+    ? body.styleId : null;
+  const vocalId = typeof body.vocalId === 'string' ? body.vocalId : null;
+  const brief = typeof body.brief === 'string'
+    ? body.brief.trim().slice(0, LIMITS.maxCaptionChars) : '';
+
+  const override = typeof body.captionOverride === 'string' ? body.captionOverride.trim() : '';
+  const composed = override || composeCaption({ styleId, vocalId, brief });
+
+  if (!composed) {
+    throw new ValidationError('caption',
+      '至少要选一个曲风，或者自己写一段音乐描述 —— 模型需要知道要做什么样的音乐。');
+  }
+  if (composed.length > LIMITS.maxCaptionChars) {
+    throw new ValidationError('caption', `描述超长（上限 ${LIMITS.maxCaptionChars} 字符）`);
+  }
+  const caption = composed;
 
   // 纯器乐是合法的，歌词可以为空 —— 但模型需要至少一个结构标签，兜底给 [Instrumental]
   const rawLyrics = typeof body.lyrics === 'string' ? body.lyrics.trim() : '';
@@ -115,6 +133,9 @@ export function validateGenerateRequest(body) {
 
   return Object.freeze({
     caption, lyrics, duration, steps, cfgScale, topK, quality, title, variants,
+    // 一并留档：回头点「用这套参数再来一次」时能把风格和你的原话还原出来，
+    // 而不是只剩一段合成后的英文
+    styleId, vocalId, brief, captionEdited: Boolean(override),
     seed: resolveSeed(body.seed),
   });
 }

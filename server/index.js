@@ -19,7 +19,7 @@ import * as comfy from './comfy-api.js';
 import * as library from './library.js';
 import * as jobs from './jobs.js';
 import { serveStatic } from './static-files.js';
-import { PRESETS } from './presets.js';
+import { STYLES, VOCAL_MODES, composeCaption, defaultLyrics } from './styles.js';
 import * as setup from './setup.js';
 
 const MAX_BODY_BYTES = 1024 * 1024; // caption + 歌词，1MB 绰绰有余
@@ -81,8 +81,32 @@ const routes = {
 
   'GET /api/config': async () => ({
     status: 200,
-    body: { limits: LIMITS, defaults: DEFAULTS, presets: PRESETS },
+    body: {
+      limits: LIMITS,
+      defaults: DEFAULTS,
+      // 只把展示需要的字段给前端；genre/tempo 这些技术描述留在服务端合成
+      styles: STYLES.map((s) => ({
+        id: s.id, name: s.name, icon: s.icon,
+        genre: s.genre, tempo: s.tempo, mood: s.mood,
+        defaultVocal: s.defaultVocal,
+      })),
+      vocalModes: VOCAL_MODES.map((v) => ({ id: v.id, name: v.name, hint: v.hint })),
+    },
   }),
+
+  /** 实时预览合成结果 —— 发给模型的到底是什么，用户必须看得见 */
+  'POST /api/compose': async (req) => {
+    const body = await readBody(req);
+    const caption = composeCaption({
+      styleId: body?.styleId,
+      vocalId: body?.vocalId,
+      brief: body?.brief,
+    });
+    return {
+      status: 200,
+      body: { caption, lyrics: defaultLyrics(body?.styleId, body?.vocalId) },
+    };
+  },
 
   'GET /api/setup': async () => ({ status: 200, body: await setup.checkEnvironment() }),
 

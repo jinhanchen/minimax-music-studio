@@ -9,6 +9,7 @@ import path from 'node:path';
 import { COMFY_OUTPUT } from './config.js';
 import { buildWorkflow, SAVE_NODE_ID } from './workflow.js';
 import { estimateDuration, calibrate } from './estimate.js';
+import { getStyle } from './styles.js';
 import { probeDuration } from './export-audio.js';
 import * as comfy from './comfy-api.js';
 import * as library from './library.js';
@@ -47,9 +48,15 @@ export async function submitJob(params) {
     updatedAt: now,
     startedAt: null,
     finishedAt: null,
-    title: params.title || deriveTitle(params.caption),
+    title: params.title || deriveTitle(params),
     caption: params.caption,
     lyrics: params.lyrics,
+    // 留档创作意图本身，而不只是合成后的英文 —— 复用参数时要还原成
+    // "什么风格 + 你当时怎么说的"，那才是可编辑的东西
+    styleId: params.styleId ?? null,
+    vocalId: params.vocalId ?? null,
+    brief: params.brief ?? '',
+    captionEdited: Boolean(params.captionEdited),
     duration: params.duration,
     seed: params.seed,
     steps: params.steps,
@@ -69,13 +76,20 @@ export async function submitJob(params) {
   return job;
 }
 
-/** caption 太长，取第一个有信息量的短句当标题 */
-function deriveTitle(caption) {
-  const cleaned = caption
-    .replace(/^\s*(Global Metadata|Vocal Details|Arrangement)\s*:\s*/i, '')
-    .trim();
-  const firstChunk = cleaned.split(/[.。\n]/).find((s) => s.trim().length > 0) ?? '未命名';
-  return firstChunk.trim().slice(0, 60);
+/**
+ * 自动标题：优先用用户自己的话（那才是他记得住的），
+ * 没有就退回曲风名，都没有才从合成的 caption 里抠。
+ */
+function deriveTitle(params) {
+  const brief = (params.brief ?? '').trim();
+  if (brief) return brief.split(/[.。\n,，]/)[0].trim().slice(0, 40) || brief.slice(0, 40);
+
+  const style = getStyle(params.styleId);
+  if (style) return style.name;
+
+  const cleaned = (params.caption ?? '')
+    .replace(/^\s*(Global Metadata|Vocal Details|Arrangement)\s*:\s*/i, '').trim();
+  return (cleaned.split(/[.。\n]/).find((s) => s.trim().length > 0) ?? '未命名').trim().slice(0, 60);
 }
 
 /**

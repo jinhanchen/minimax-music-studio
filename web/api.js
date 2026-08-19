@@ -28,6 +28,10 @@ export const deleteJob   = (id) => req(`/api/jobs/${encodeURIComponent(id)}`, { 
 export const estimate    = (duration, coldStart) =>
   req('/api/estimate', { method: 'POST', body: JSON.stringify({ duration, coldStart }) });
 
+/** 预览「曲风 + 人声 + 你的想法」合成后发给模型的描述 */
+export const compose     = (input) =>
+  req('/api/compose', { method: 'POST', body: JSON.stringify(input) });
+
 export const audioUrl    = (id, download = false) =>
   `/api/jobs/${encodeURIComponent(id)}/audio${download ? '?download=1' : ''}`;
 

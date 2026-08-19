@@ -6,8 +6,11 @@ import { openSetup, closeSetup, autoOpenIfNeeded } from './setup.js';
 const $ = (id) => document.getElementById(id);
 
 const el = {
-  health: $('health'), presets: $('presets'), title: $('title'),
-  caption: $('caption'), captionCount: $('captionCount'),
+  health: $('health'), title: $('title'),
+  styles: $('styles'), styleInfo: $('styleInfo'), vocals: $('vocals'),
+  brief: $('brief'), briefCount: $('briefCount'),
+  caption: $('caption'), captionPreview: $('captionPreview'),
+  cpTag: $('cpTag'), cpReset: $('cpReset'),
   lyrics: $('lyrics'), tagbar: $('tagbar'),
   duration: $('duration'), durationOut: $('durationOut'),
   eta: $('eta'), etaValue: $('etaValue'), etaNote: $('etaNote'),
@@ -17,7 +20,15 @@ const el = {
 };
 
 const state = {
-  presets: [],
+  styles: [],
+  vocalModes: [],
+  /** 曲风是"这是什么类型的音乐"的分类信号，不是往描述框灌模板 */
+  styleId: null,
+  vocalId: null,
+  /** 用户手改过合成结果后，就不再自动覆盖他的文字 */
+  captionEdited: false,
+  /** 歌词是否还是自动给的骨架 —— 是的话切人声模式可以安全替换 */
+  lyricsPristine: true,
   jobs: [],
   filter: 'all',
   expanded: new Set(),
@@ -90,23 +101,97 @@ function setHealth(kind, text) {
 
 /* ============================ 预设 / 歌词标签 ============================ */
 
-function renderPresets() {
-  el.presets.innerHTML = '';
-  for (const p of state.presets) {
+/**
+ * 曲风选择。
+ * 只做一件事：记下"这是什么类型的音乐"。不碰用户写的任何文字。
+ */
+function renderStyles() {
+  el.styles.innerHTML = '';
+  for (const s of state.styles) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'preset';
-    btn.dataset.id = p.id;
-    btn.innerHTML = `${iconSpan(p.icon)}<span>${escapeHtml(p.name)}</span>`;
-    btn.addEventListener('click', () => {
-      el.caption.value = p.caption;
-      el.lyrics.value = p.lyrics;
-      if (!el.title.value.trim()) el.title.value = p.name;
-      document.querySelectorAll('.preset').forEach((b) => b.classList.toggle('active', b === btn));
-      updateCaptionCount();
-    });
-    el.presets.appendChild(btn);
+    btn.className = 'style-chip';
+    btn.dataset.id = s.id;
+    btn.innerHTML = `${iconSpan(s.icon)}<span>${escapeHtml(s.name)}</span>`;
+    btn.addEventListener('click', () => selectStyle(s.id));
+    el.styles.appendChild(btn);
   }
+}
+
+function selectStyle(id) {
+  const style = state.styles.find((s) => s.id === id);
+  if (!style) return;
+  const first = state.styleId === null;
+  state.styleId = id;
+
+  // 换曲风时人声跟着换成这个风格的常见取向，但用户已经明确选过就不动他的
+  if (first || !state.vocalTouched) state.vocalId = style.defaultVocal;
+
+  document.querySelectorAll('.style-chip')
+    .forEach((b) => b.classList.toggle('active', b.dataset.id === id));
+  renderVocals();
+
+  el.styleInfo.innerHTML =
+    `<span>${escapeHtml(style.genre)}</span><span>${escapeHtml(style.tempo)}</span>`
+    + `<span class="si-mood">${escapeHtml(style.mood)}</span>`;
+
+  recompose();
+}
+
+function renderVocals() {
+  el.vocals.innerHTML = '';
+  for (const v of state.vocalModes) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `vocal-chip${v.id === state.vocalId ? ' active' : ''}`;
+    btn.dataset.id = v.id;
+    btn.innerHTML = `<span>${escapeHtml(v.name)}</span>`
+      + (v.hint ? `<em>${escapeHtml(v.hint)}</em>` : '');
+    btn.addEventListener('click', () => {
+      state.vocalId = v.id;
+      state.vocalTouched = true;
+      renderVocals();
+      recompose();
+    });
+    el.vocals.appendChild(btn);
+  }
+}
+
+/**
+ * 把「曲风 + 人声 + 你的想法」合成为发给模型的描述。
+ * 合成在服务端做（同一套逻辑，提交时也走它），前端只负责显示。
+ */
+let composeTimer = null;
+
+function recompose({ immediate = false } = {}) {
+  clearTimeout(composeTimer);
+  const run = async () => {
+    if (state.captionEdited) return;          // 用户改过就别覆盖他
+    if (!state.styleId && !el.brief.value.trim()) {
+      el.caption.value = '';
+      updateCaptionCount();
+      return;
+    }
+    try {
+      const r = await api.compose({
+        styleId: state.styleId,
+        vocalId: state.vocalId,
+        brief: el.brief.value,
+      });
+      el.caption.value = r.caption;
+      if (state.lyricsPristine) el.lyrics.value = r.lyrics;
+      updateCaptionCount();
+    } catch { /* 合成失败不影响填写，提交时服务端还会再合成一次 */ }
+  };
+  if (immediate) run();
+  else composeTimer = setTimeout(run, 220);
+}
+
+function updateCaptionCount() {
+  el.briefCount.textContent = el.brief.value.length;
+  el.cpTag.textContent = state.captionEdited ? '已手动编辑' : '自动合成';
+  el.cpTag.classList.toggle('edited', state.captionEdited);
+  el.cpReset.hidden = !state.captionEdited;
 }
 
 function renderTagbar() {
@@ -127,8 +212,6 @@ function renderTagbar() {
     el.tagbar.appendChild(b);
   }
 }
-
-const updateCaptionCount = () => { el.captionCount.textContent = el.caption.value.length; };
 
 /* ============================ 时长与耗时预估 ============================ */
 
@@ -176,16 +259,18 @@ const clearError = () => { el.formError.hidden = true; };
 
 async function submit() {
   clearError();
-  const caption = el.caption.value.trim();
-  if (!caption) {
-    showError('请先填写音乐描述 —— 这是模型唯一的创作依据。');
-    el.caption.focus();
+  if (!state.styleId && !el.brief.value.trim() && !el.caption.value.trim()) {
+    showError('先选一个曲风 —— 模型需要知道要做什么类型的音乐。');
     return;
   }
 
   const payload = {
     title: el.title.value.trim(),
-    caption,
+    styleId: state.styleId,
+    vocalId: state.vocalId,
+    brief: el.brief.value,
+    // 只有用户真改过合成结果才覆盖，否则让服务端用同一套逻辑重新合成
+    captionOverride: state.captionEdited ? el.caption.value : undefined,
     lyrics: el.lyrics.value,
     duration: Number(el.duration.value),
     seed: el.seed.value === '' ? undefined : Number(el.seed.value),
@@ -426,17 +511,38 @@ function buildActions(job) {
 
   add('refresh', '用这套参数再来一次', () => {
     el.title.value = job.title ?? '';
-    el.caption.value = job.caption ?? '';
     el.lyrics.value = job.lyrics ?? '';
+    state.lyricsPristine = false;
     el.duration.value = String(job.duration);
     el.steps.value = String(job.steps);
     el.cfgScale.value = String(job.cfgScale);
     el.topK.value = String(job.topK);
     el.seed.value = '';
-    updateDurationUI();
+
+    // 还原成"什么风格 + 你当时怎么说的"，而不是只剩一段合成后的英文 ——
+    // 那样你没法在原意上继续改
+    el.brief.value = job.brief ?? '';
+    state.vocalId = job.vocalId ?? null;
+    state.vocalTouched = Boolean(job.vocalId);
+    state.captionEdited = Boolean(job.captionEdited);
+    if (job.styleId && state.styles.some((s) => s.id === job.styleId)) {
+      selectStyle(job.styleId);
+      state.vocalId = job.vocalId ?? state.vocalId;
+      renderVocals();
+    } else {
+      state.styleId = null;
+      document.querySelectorAll('.style-chip').forEach((b) => b.classList.remove('active'));
+    }
+    if (state.captionEdited) {
+      el.caption.value = job.caption ?? '';
+      el.captionPreview.open = true;
+    } else {
+      recompose({ immediate: true });
+    }
     updateCaptionCount();
+    updateDurationUI();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    toast('参数已填入，种子留空 = 生成不同版本');
+    toast('参数已还原，种子留空 = 生成不同版本');
   });
 
   if (job.status === 'done') {
@@ -570,14 +676,18 @@ async function init() {
 
   try {
     const cfg = await api.getConfig();
-    state.presets = cfg.presets ?? [];
+    state.styles = cfg.styles ?? [];
+    state.vocalModes = cfg.vocalModes ?? [];
     el.duration.min = String(cfg.limits.minDuration);
     el.duration.max = String(cfg.limits.maxDuration);
     el.duration.value = String(cfg.defaults.duration);
     el.steps.value = String(cfg.defaults.steps);
     el.cfgScale.value = String(cfg.defaults.cfgScale);
     el.topK.value = String(cfg.defaults.topK);
-    renderPresets();
+    renderStyles();
+    renderVocals();
+    // 默认选中第一个曲风：空表单对人不友好，而且曲风本来就是必选项
+    if (state.styles.length) selectStyle(state.styles[0].id);
   } catch (e) {
     showError(`加载配置失败：${e.message}`);
   }
@@ -588,7 +698,18 @@ async function init() {
   await refreshHealth();
   await autoOpenIfNeeded();
 
-  el.caption.addEventListener('input', updateCaptionCount);
+  el.brief.addEventListener('input', () => { updateCaptionCount(); recompose(); });
+  // 一旦手动改了合成结果，就以用户改的为准，不再自动覆盖
+  el.caption.addEventListener('input', () => {
+    state.captionEdited = true;
+    updateCaptionCount();
+  });
+  el.cpReset.addEventListener('click', () => {
+    state.captionEdited = false;
+    recompose({ immediate: true });
+    updateCaptionCount();
+  });
+  el.lyrics.addEventListener('input', () => { state.lyricsPristine = false; });
   el.duration.addEventListener('input', updateDurationUI);
   el.generate.addEventListener('click', submit);
   $('openSetup').addEventListener('click', openSetup);

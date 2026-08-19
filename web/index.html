@@ -32,22 +32,43 @@
     <h2 class="panel-title">创作</h2>
 
     <div class="field">
-      <label>曲风预设 <span class="hint">点一个作为起点，然后随便改</span></label>
-      <div class="presets" id="presets"></div>
-    </div>
-
-    <div class="field">
-      <label for="title">标题 <span class="hint">留空自动从描述取</span></label>
-      <input type="text" id="title" placeholder="例如：雨夜书房">
-    </div>
-
-    <div class="field">
-      <label for="caption">
-        音乐描述 <span class="req">必填</span>
-        <span class="hint">三段式：Global Metadata / Vocal Details / Arrangement</span>
+      <label>
+        曲风 <span class="req">选一个</span>
+        <span class="hint">告诉模型这是什么类型的音乐</span>
       </label>
-      <textarea id="caption" rows="9" placeholder="Global Metadata: 曲风、BPM、调性、情绪走向、制作风格&#10;Vocal Details: 人声性别、音色、演唱方式、和声、效果&#10;Arrangement: 乐器、律动、低音、打击乐、空间感"></textarea>
-      <div class="counter"><span id="captionCount">0</span> 字符</div>
+      <div class="styles" id="styles"></div>
+      <div class="style-info" id="styleInfo"></div>
+    </div>
+
+    <div class="field">
+      <label>人声 <span class="hint">配视频/BGM 建议纯器乐</span></label>
+      <div class="vocals" id="vocals"></div>
+    </div>
+
+    <div class="field">
+      <label for="brief">
+        你想要什么样的
+        <span class="hint">用你自己的话，中文就行 —— 场景、情绪、要避开什么</span>
+      </label>
+      <textarea id="brief" rows="3" placeholder="例如：雨夜、适合看书、别太吵，中段可以稍微亮一点"></textarea>
+      <div class="counter"><span id="briefCount">0</span> 字符</div>
+    </div>
+
+    <details class="caption-preview" id="captionPreview">
+      <summary>
+        <span class="cp-label">实际发给模型的描述</span>
+        <span class="cp-tag" id="cpTag">自动合成</span>
+      </summary>
+      <textarea id="caption" rows="8" spellcheck="false"></textarea>
+      <div class="cp-foot">
+        <span class="hint">改动后就以你改的为准；点「恢复自动合成」回到跟随曲风。</span>
+        <button type="button" class="act" id="cpReset">恢复自动合成</button>
+      </div>
+    </details>
+
+    <div class="field">
+      <label for="title">标题 <span class="hint">留空自动取</span></label>
+      <input type="text" id="title" placeholder="例如：雨夜书房">
     </div>
 
     <div class="field">

@@ -161,23 +161,79 @@ input::placeholder, textarea::placeholder { color: #4a5162; }
 
 .counter { text-align: right; font-size: 11px; color: var(--text-faint); margin-top: 4px; }
 
-/* ---------- 预设 ---------- */
-.presets { display: flex; flex-wrap: wrap; gap: 7px; }
-.preset {
+/* ---------- 曲风选择 ---------- */
+.styles { display: flex; flex-wrap: wrap; gap: 7px; }
+.style-chip {
   display: inline-flex; align-items: center;
   padding: 7px 13px; font-size: 12.5px;
   background: var(--bg-sunken); color: var(--text-dim);
   border: 1px solid var(--line); border-radius: 99px;
   cursor: pointer; transition: all .15s; font-family: inherit;
 }
-.preset .ico { opacity: .8; }
-.preset:hover { background: var(--bg-hover); color: var(--text); border-color: #333846; }
-.preset:hover .ico { opacity: 1; }
-.preset.active {
-  background: linear-gradient(145deg, #33260f, #2a1f0d);
+.style-chip .ico { opacity: .75; }
+.style-chip:hover { background: var(--bg-hover); color: var(--text); border-color: #333846; }
+.style-chip:hover .ico { opacity: 1; }
+.style-chip.active {
+  background: linear-gradient(145deg, #35270f, #2a1f0d);
+  border-color: var(--accent-dim); color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(240,165,60,.16);
+}
+.style-chip.active .ico { opacity: 1; }
+
+/* 选中曲风后展示它对模型意味着什么 —— 不是装饰，是让人知道自己选了什么 */
+.style-info {
+  display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 9px;
+  font-size: 11.5px; color: var(--text-faint);
+}
+.style-info:empty { display: none; }
+.style-info span {
+  padding: 3px 8px; border-radius: 6px;
+  background: var(--bg-sunken); border: 1px solid var(--line-soft);
+  font-family: var(--mono);
+}
+.style-info .si-mood { font-family: inherit; color: var(--text-dim); flex: 1; min-width: 200px; }
+
+/* ---------- 人声取向 ---------- */
+.vocals { display: flex; flex-wrap: wrap; gap: 6px; }
+.vocal-chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 7px 13px; font-size: 12.5px; font-family: inherit; cursor: pointer;
+  background: var(--bg-sunken); color: var(--text-dim);
+  border: 1px solid var(--line); border-radius: 8px; transition: all .15s;
+}
+.vocal-chip em { font-style: normal; font-size: 10.5px; color: var(--text-faint); }
+.vocal-chip:hover { background: var(--bg-hover); color: var(--text); }
+.vocal-chip.active {
+  background: linear-gradient(145deg, #35270f, #2a1f0d);
   border-color: var(--accent-dim); color: var(--accent);
 }
-.preset.active .ico { opacity: 1; }
+.vocal-chip.active em { color: var(--accent-dim); }
+
+/* ---------- 合成结果预览 ---------- */
+.caption-preview {
+  border: 1px solid var(--line); border-radius: 11px;
+  background: var(--bg-sunken); margin-bottom: 18px; padding: 0 14px;
+}
+.caption-preview summary {
+  display: flex; align-items: center; gap: 9px;
+  cursor: pointer; padding: 11px 0; user-select: none;
+}
+.cp-label { font-size: 12.5px; font-weight: 600; color: var(--text-dim); }
+.caption-preview summary:hover .cp-label { color: var(--text); }
+.cp-tag {
+  font-size: 10.5px; padding: 2px 8px; border-radius: 99px;
+  background: var(--bg-hover); color: var(--text-faint);
+}
+.cp-tag.edited { background: #33290f; color: var(--warn); }
+.caption-preview textarea {
+  font-family: var(--mono); font-size: 12px; line-height: 1.65;
+  background: #0a0c10; margin-bottom: 10px;
+}
+.cp-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding-bottom: 13px;
+}
+.cp-foot .hint { margin: 0; flex: 1; }
 
 /* ---------- 歌词标签 ---------- */
 .tagbar { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
