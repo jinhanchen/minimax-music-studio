@@ -26,6 +26,27 @@ export const COMFY_INSTALL = process.env.COMFY_INSTALL
 export const COMFY_OUTPUT = process.env.COMFY_OUTPUT
   ?? 'E:/Comfy-Desktop/ComfyUI-Shared/output';
 
+/** 模型根目录。下载向导往这里的 diffusion_models / text_encoders / vae 放文件 */
+export const MODELS_DIR = process.env.MODELS_DIR
+  ?? 'E:/Comfy-Desktop/ComfyUI-Shared/models';
+
+/**
+ * 模型下载源。魔搭在国内直连快很多，HuggingFace 作备选。
+ * 两边文件逐字节一致（本项目部署时校验过）。
+ */
+export const MODEL_SOURCES = Object.freeze([
+  {
+    id: 'modelscope',
+    label: '魔搭 ModelScope（国内推荐）',
+    base: 'https://www.modelscope.cn/models/Comfy-Org/MiniMax-Music-3/resolve/master',
+  },
+  {
+    id: 'huggingface',
+    label: 'HuggingFace（需要代理）',
+    base: 'https://huggingface.co/Comfy-Org/MiniMax-Music-3/resolve/main',
+  },
+]);
+
 /** 生成记录索引文件 */
 export const LIBRARY_FILE = path.join(ROOT, 'data', 'library.json');
 

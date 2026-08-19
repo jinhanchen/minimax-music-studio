@@ -20,6 +20,25 @@
 
 ---
 
+## 初始化设置
+
+**不用照着 README 一步步敲。** 工作台内置了初始化向导 —— 第一次打开时如果环境没配好会自动弹出，之后也能从顶栏「初始化设置」进。
+
+它把四件事做成可执行的流程：
+
+| 步骤 | 向导会做什么 |
+|---|---|
+| 1. 安装 ComfyUI | 检查版本，低于 0.33.1 直接给出可复制的升级命令，并警告不要跑 `pip install -r requirements.txt` |
+| 2. 下载模型 | **直接在界面里下**，三个文件逐个进度条 + 速度 + 剩余时间；支持断点续传，中断了再点一次接着下；可选魔搭 / HuggingFace 源 |
+| 3. 启动 ComfyUI | 检查是否在线，显存偏小时说明会走权重流式加载 |
+| 4. ComfyUI 认出模型 | 确认 Music 3 节点已注册、三个模型都被发现 |
+
+外加 ffmpeg 检查（导出指定时长要用）。每一步都有状态徽标和可复制的修复命令。
+
+模型目录默认 `E:/Comfy-Desktop/ComfyUI-Shared/models`，装在别处就设环境变量 `MODELS_DIR` 和 `COMFY_INSTALL` 后重启工作台。
+
+---
+
 ## 快速开始
 
 ```bash
@@ -222,10 +241,24 @@ minimax-music-studio/
 │   ├── estimate.js      耗时预估 + 本机历史自校准
 │   ├── export-audio.js  时长适配（ffmpeg 循环/裁剪/淡化）
 │   └── doctor.js        环境自检
-└── web/                 前端（原生 HTML/CSS/JS）
+└── web/
+    ├── index.html
+    ├── style.css
+    ├── app.js           主逻辑
+    ├── api.js           后端接口封装
+    ├── icons.js         内联 SVG 图标库（不用 emoji）
+    ├── setup.js         初始化向导
+    └── visualizer.js    播放频谱 + 流光
 ```
 
 生成记录存在 `data/library.json`，音频文件留在 ComfyUI 的 `output/audio/`。
+
+## 界面上的一些细节
+
+- **生成耗时会留痕**：每首完成的曲子都标出实际耗时、相对音频长度的倍率（如 `8.0× 实时`）、以及当时给出的预估值。曲库顶部有汇总，一眼看出这台机器到底多快
+- **播放时有真实频谱**：数据来自 Web Audio 的 `AnalyserNode`，是音频真实频率，不是随机动画。卡片同时进入「流光」态 —— 旋转的渐变描边 + 扫过表面的柔光，辉光强度跟随实时响度
+- **图标全部是内联 SVG**：跟随 `currentColor`，自动继承 hover / 选中 / 禁用状态的颜色。不用 emoji，因为 emoji 在不同系统上字形粗细基线都不同，没法和界面的线条语言统一
+- 尊重 `prefers-reduced-motion`，开了减少动效就不播动画
 
 ---
 

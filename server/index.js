@@ -20,6 +20,7 @@ import * as library from './library.js';
 import * as jobs from './jobs.js';
 import { serveStatic } from './static-files.js';
 import { PRESETS } from './presets.js';
+import * as setup from './setup.js';
 
 const MAX_BODY_BYTES = 1024 * 1024; // caption + 歌词，1MB 绰绰有余
 
@@ -81,6 +82,24 @@ const routes = {
   'GET /api/config': async () => ({
     status: 200,
     body: { limits: LIMITS, defaults: DEFAULTS, presets: PRESETS },
+  }),
+
+  'GET /api/setup': async () => ({ status: 200, body: await setup.checkEnvironment() }),
+
+  'GET /api/setup/download': async () => ({ status: 200, body: setup.getDownloadState() }),
+
+  'POST /api/setup/download': async (req) => {
+    const body = await readBody(req);
+    try {
+      return { status: 202, body: await setup.startDownload(body?.sourceId) };
+    } catch (err) {
+      return { status: 409, body: { error: String(err?.message ?? err) } };
+    }
+  },
+
+  'POST /api/setup/download/cancel': async () => ({
+    status: 200,
+    body: { canceled: setup.cancelDownload() },
   }),
 
   'POST /api/estimate': async (req) => {

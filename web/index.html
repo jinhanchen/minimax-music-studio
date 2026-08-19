@@ -5,20 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MiniMax Music 3 工作台</title>
 <link rel="stylesheet" href="/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 </head>
 <body>
 
 <header class="topbar">
   <div class="brand">
-    <span class="brand-mark">♪</span>
+    <span class="brand-mark" id="brandMark"></span>
     <div>
       <h1>MiniMax Music 3 工作台</h1>
       <p class="brand-sub">本地生成 · 无限次 · 不上传</p>
     </div>
   </div>
-  <div class="health" id="health">
-    <span class="dot dot-idle"></span><span class="health-text">正在检查 ComfyUI…</span>
+  <div class="topbar-right">
+    <div class="health" id="health">
+      <span class="dot dot-idle"></span><span class="health-text">正在检查 ComfyUI…</span>
+    </div>
+    <button class="btn-ghost" id="openSetup">初始化设置</button>
   </div>
 </header>
 
@@ -121,7 +124,7 @@
       </div>
       <p class="adv-note">
         扩散步数只影响那 13 秒的采样阶段，调它省不了多少时间 ——
-        真正的耗时在自回归编码器，它的步数 = 时长 × 25，只能靠缩短时长来减少。
+        真正的耗时在自回归编码器，它的步数 = 实际输出秒数 × 25，只能靠缩短时长来减少。
       </p>
     </details>
 
@@ -142,12 +145,29 @@
         <button class="tab" data-tab="done">已完成</button>
       </div>
     </div>
+    <div class="lib-stats" id="libStats"></div>
     <div class="joblist" id="joblist">
-      <div class="empty">还没有作品。左边写点什么，点"开始生成"。</div>
+      <div class="empty">还没有作品。左边写点什么，点“开始生成”。</div>
     </div>
   </section>
 
 </main>
+
+<!-- ============ 初始化向导 ============ -->
+<div class="overlay" id="setupOverlay" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2>初始化设置</h2>
+        <p>从零到能生成音乐，一共四步。每步都能在这里做完。</p>
+      </div>
+      <button class="btn-ghost" id="closeSetup">关闭</button>
+    </div>
+    <div class="modal-body" id="setupBody">
+      <div class="setup-banner">正在检查环境…</div>
+    </div>
+  </div>
+</div>
 
 <script src="/app.js" type="module"></script>
 </body>

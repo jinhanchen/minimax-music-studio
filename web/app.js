@@ -1,4 +1,7 @@
 import * as api from './api.js';
+import { iconSpan, icon } from './icons.js';
+import { attachVisualizer, stopVisualizer, drawIdle } from './visualizer.js';
+import { openSetup, closeSetup, autoOpenIfNeeded } from './setup.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -10,20 +13,16 @@ const el = {
   eta: $('eta'), etaValue: $('etaValue'), etaNote: $('etaNote'),
   seed: $('seed'), steps: $('steps'), cfgScale: $('cfgScale'), topK: $('topK'),
   generate: $('generate'), genEta: $('genEta'), formError: $('formError'),
-  joblist: $('joblist'),
+  joblist: $('joblist'), libStats: $('libStats'), brandMark: $('brandMark'),
 };
 
 const state = {
   presets: [],
   jobs: [],
   filter: 'all',
-  /** 记住每张卡是否展开了描述，刷新列表时不要弹回去 */
   expanded: new Set(),
-  /** 同上，记住哪张卡打开了导出面板 */
   exporting: new Set(),
   variants: 1,
-  /** 正在播放的任务，重渲染时保住播放进度 */
-  playing: null,
   everGenerated: false,
 };
 
@@ -33,15 +32,15 @@ const LYRIC_TAGS = ['[Intro]', '[Verse]', '[Chorus]', '[Bridge]', '[Instrumental
 
 const fmtClock = (sec) => {
   const s = Math.max(0, Math.round(sec));
-  const m = Math.floor(s / 60);
-  return `${m}:${String(s % 60).padStart(2, '0')}`;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
 function fmtDuration(sec) {
-  if (sec < 60) return `${sec} 秒`;
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return s === 0 ? `${m} 分钟` : `${m} 分 ${s} 秒`;
+  const s = Math.round(sec);
+  if (s < 60) return `${s} 秒`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r === 0 ? `${m} 分钟` : `${m} 分 ${r} 秒`;
 }
 
 function toast(msg) {
@@ -49,7 +48,8 @@ function toast(msg) {
   node.className = 'toast';
   node.textContent = msg;
   document.body.appendChild(node);
-  setTimeout(() => node.remove(), 3200);
+  setTimeout(() => node.classList.add('out'), 2800);
+  setTimeout(() => node.remove(), 3300);
 }
 
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g,
@@ -61,32 +61,31 @@ async function refreshHealth() {
   try {
     const h = await api.getHealth();
     if (!h.online) {
-      el.health.innerHTML =
-        `<span class="dot dot-err"></span><span class="health-text">ComfyUI 未运行 · 执行 <code>npm run comfyui</code></span>`;
+      setHealth('err', 'ComfyUI 未运行 · 点右侧「初始化设置」');
       return false;
     }
-    const missing = h.models
-      ? Object.entries({ 扩散模型: h.models.dit, 文本编码器: h.models.textEncoder, VAE: h.models.vae })
-          .filter(([, ok]) => !ok).map(([k]) => k)
-      : [];
     if (!h.models?.nodesPresent) {
-      el.health.innerHTML =
-        `<span class="dot dot-err"></span><span class="health-text">ComfyUI ${escapeHtml(h.version)} 缺少 Music 3 节点，需升级到 ≥0.33.1</span>`;
+      setHealth('err', `ComfyUI ${h.version} 缺少 Music 3 节点，需 ≥ 0.33.1`);
       return false;
     }
+    const missing = Object.entries({
+      扩散模型: h.models.dit, 文本编码器: h.models.textEncoder, VAE: h.models.vae,
+    }).filter(([, ok]) => !ok).map(([k]) => k);
     if (missing.length) {
-      el.health.innerHTML =
-        `<span class="dot dot-err"></span><span class="health-text">缺少模型：${missing.join('、')}</span>`;
+      setHealth('err', `缺少模型：${missing.join('、')}`);
       return false;
     }
-    el.health.innerHTML =
-      `<span class="dot dot-ok"></span><span class="health-text">ComfyUI ${escapeHtml(h.version)} · ${escapeHtml(h.device)} · 显存 ${h.vramFreeMB}/${h.vramTotalMB} MB</span>`;
+    setHealth('ok', `ComfyUI ${h.version} · 显存 ${h.vramFreeMB}/${h.vramTotalMB} MB`);
     return true;
   } catch {
-    el.health.innerHTML =
-      `<span class="dot dot-err"></span><span class="health-text">工作台服务异常</span>`;
+    setHealth('err', '工作台服务异常');
     return false;
   }
+}
+
+function setHealth(kind, text) {
+  el.health.innerHTML = `<span class="dot dot-${kind}"></span>`
+    + `<span class="health-text">${escapeHtml(text)}</span>`;
 }
 
 /* ============================ 预设 / 歌词标签 ============================ */
@@ -98,7 +97,7 @@ function renderPresets() {
     btn.type = 'button';
     btn.className = 'preset';
     btn.dataset.id = p.id;
-    btn.innerHTML = `<span>${p.emoji}</span><span>${escapeHtml(p.name)}</span>`;
+    btn.innerHTML = `${iconSpan(p.icon)}<span>${escapeHtml(p.name)}</span>`;
     btn.addEventListener('click', () => {
       el.caption.value = p.caption;
       el.lyrics.value = p.lyrics;
@@ -144,8 +143,6 @@ function updateDurationUI() {
     try {
       const est = await api.estimate(sec, !state.everGenerated);
       el.etaValue.textContent = est.text;
-      // 说清楚区间是怎么来的：步数区间反映"模型可能提前收尾"，
-      // basis 说明用的是本机实测还是默认值
       el.etaNote.textContent =
         `自回归 ${est.arStepsMin.toLocaleString()}~${est.arSteps.toLocaleString()} 步`
         + `${est.coldStart ? ' · 含首次加载' : ''} · ${est.basis}`;
@@ -159,15 +156,14 @@ function updateDurationUI() {
   }, 120);
 }
 
-/** 变体是串行跑的（ComfyUI 一次一个任务），总时长要乘出来给用户看 */
 function updateVariantsTotal(est) {
   const box = $('variantsTotal');
   if (!box) return;
   if (state.variants <= 1) { box.textContent = ''; box.className = 'variants-total'; return; }
-  const totalMin = Math.round(est.minSec * state.variants / 60);
-  const totalMax = Math.round(est.maxSec * state.variants / 60);
-  box.textContent = `串行排队，全部跑完约 ${totalMin} ~ ${totalMax} 分钟`;
-  box.className = totalMax > 90 ? 'variants-total warn' : 'variants-total';
+  const lo = Math.round(est.minSec * state.variants / 60);
+  const hi = Math.round(est.maxSec * state.variants / 60);
+  box.textContent = `串行排队，全部跑完约 ${lo} ~ ${hi} 分钟`;
+  box.className = hi > 90 ? 'variants-total warn' : 'variants-total';
 }
 
 /* ============================ 提交 ============================ */
@@ -229,25 +225,15 @@ function jobProgress(job) {
   if (job.status !== 'running' || !job.startedAt) return null;
   const elapsed = (Date.now() - new Date(job.startedAt).getTime()) / 1000;
   const total = job.estimateMaxSec || 1;
-  // 预估只是预估，封顶 96%，不要显示 100% 却还没好
-  return { elapsed, pct: Math.min(96, (elapsed / total) * 100), total };
+  return { elapsed, pct: Math.min(96, (elapsed / total) * 100) };
 }
 
-/**
- * 卡片指纹：只有这些字段变了，卡片才需要重建。
- *
- * 之前每次轮询都 innerHTML='' 整体重建，看着简单，实际会把卡片上一切
- * 瞬时状态清掉 —— 导出进度文字写进了已脱离文档的节点、音频元素每 4 秒
- * 被销毁重建导致 /audio 请求反复 ERR_ABORTED。增量渲染是这类 bug 的
- * 根治办法，不是优化。
- */
 const cardSignature = (job) => [
   job.id, job.status, job.audio?.filename ?? '', job.error ?? '',
   state.expanded.has(job.id) ? 'e' : '',
   state.exporting.has(job.id) ? 'x' : '',
 ].join('|');
 
-/** 已渲染卡片的指纹，用于判断能否复用 DOM */
 const rendered = new Map();
 
 function renderJobs() {
@@ -257,10 +243,13 @@ function renderJobs() {
     return true;
   });
 
+  renderStats();
+
   if (filtered.length === 0) {
+    for (const [, e] of rendered) stopVisualizer(e.node.querySelector('canvas'));
     rendered.clear();
     el.joblist.innerHTML = `<div class="empty">${
-      state.filter === 'all' ? '还没有作品。左边写点什么，点"开始生成"。' : '这个分类下没有内容。'
+      state.filter === 'all' ? '还没有作品。左边写点什么，点“开始生成”。' : '这个分类下没有内容。'
     }</div>`;
     return;
   }
@@ -269,7 +258,11 @@ function renderJobs() {
 
   const wanted = new Set(filtered.map((j) => j.id));
   for (const [id, entry] of rendered) {
-    if (!wanted.has(id)) { entry.node.remove(); rendered.delete(id); }
+    if (!wanted.has(id)) {
+      stopVisualizer(entry.node.querySelector('canvas'));
+      entry.node.remove();
+      rendered.delete(id);
+    }
   }
 
   let prev = null;
@@ -278,21 +271,35 @@ function renderJobs() {
     const existing = rendered.get(job.id);
     let node;
     if (existing && existing.sig === sig) {
-      node = existing.node;              // 状态没变 —— 原样保留，别碰它
+      node = existing.node;
     } else {
       node = renderJobCard(job);
-      if (existing) existing.node.replaceWith(node);
+      if (existing) {
+        stopVisualizer(existing.node.querySelector('canvas'));
+        existing.node.replaceWith(node);
+      }
       rendered.set(job.id, { sig, node });
     }
-    // 保证顺序正确（新任务插到最前）
     const shouldFollow = prev ? prev.nextSibling : el.joblist.firstChild;
-    if (node !== shouldFollow) {
-      el.joblist.insertBefore(node, shouldFollow);
-    }
+    if (node !== shouldFollow) el.joblist.insertBefore(node, shouldFollow);
     prev = node;
   }
 
   updateLiveProgressOnly();
+}
+
+/** 曲库概览：让"这台机器到底多快"一眼可见 */
+function renderStats() {
+  const done = state.jobs.filter((j) => j.status === 'done' && Number.isFinite(j.computeSec));
+  if (done.length === 0) { el.libStats.innerHTML = ''; return; }
+  const totalCompute = done.reduce((s, j) => s + j.computeSec, 0);
+  const totalAudio = done.reduce((s, j) => s + (j.actualSec ?? 0), 0);
+  const ratio = totalAudio > 0 ? totalCompute / totalAudio : 0;
+  el.libStats.innerHTML =
+    `<span>${iconSpan('spark')}${done.length} 首</span>`
+    + `<span>${iconSpan('wave')}音频共 ${fmtClock(totalAudio)}</span>`
+    + `<span>${iconSpan('clock')}生成共 ${fmtClock(totalCompute)}</span>`
+    + `<span class="stat-ratio">平均 ${ratio.toFixed(1)}× 实时</span>`;
 }
 
 function renderJobCard(job) {
@@ -301,58 +308,48 @@ function renderJobCard(job) {
   card.dataset.id = job.id;
 
   const created = new Date(job.createdAt).toLocaleString('zh-CN', { hour12: false });
-  const parts = [`${fmtDuration(job.duration)}`, `seed ${job.seed}`, `${job.steps} 步`];
+  const durText = Number.isFinite(job.actualSec)
+    ? `实际 ${fmtDuration(job.actualSec)}（上限 ${fmtDuration(job.duration)}）`
+    : fmtDuration(job.duration);
 
   card.innerHTML = `
     <div class="job-head">
-      <div>
+      <div class="job-headline">
         <p class="job-title">${escapeHtml(job.title || '未命名')}</p>
-        <div class="job-meta">${parts.join(' · ')} · ${escapeHtml(created)}</div>
+        <div class="job-meta">${escapeHtml(durText)} · seed ${job.seed} · ${job.steps} 步 · ${escapeHtml(created)}</div>
       </div>
       <span class="badge badge-${job.status}">${STATUS_TEXT[job.status] ?? job.status}</span>
     </div>`;
+
+  // 生成耗时：完成后必须留痕，这是判断"这台机器值不值得跑长曲子"的唯一依据
+  if (job.status === 'done' && Number.isFinite(job.computeSec)) {
+    const speed = job.actualSec > 0 ? (job.computeSec / job.actualSec).toFixed(1) : null;
+    const timing = document.createElement('div');
+    timing.className = 'job-timing';
+    timing.innerHTML =
+      `<span class="t-main">${iconSpan('clock')}生成耗时 <strong>${fmtClock(job.computeSec)}</strong></span>`
+      + (speed ? `<span class="t-sub">${speed}× 实时</span>` : '')
+      + (Number.isFinite(job.estimateMinSec)
+        ? `<span class="t-sub">预估 ${fmtClock(job.estimateMinSec)}~${fmtClock(job.estimateMaxSec)}</span>` : '');
+    card.appendChild(timing);
+  }
 
   const prog = jobProgress(job);
   if (job.status === 'queued' || prog) {
     const wrap = document.createElement('div');
     wrap.className = 'job-progress';
-    if (prog) {
-      wrap.innerHTML = `
-        <div class="bar"><i style="width:${prog.pct.toFixed(1)}%"></i></div>
-        <div class="progress-text">
-          <span>已用 ${fmtClock(prog.elapsed)}</span>
-          <span>预计共 ${fmtClock(job.estimateMinSec)} ~ ${fmtClock(job.estimateMaxSec)}</span>
-        </div>`;
-    } else {
-      wrap.innerHTML = `
-        <div class="bar indeterminate"><i></i></div>
-        <div class="progress-text"><span>排队等待 GPU</span><span></span></div>`;
-    }
+    wrap.innerHTML = prog
+      ? `<div class="bar"><i style="width:${prog.pct.toFixed(1)}%"></i></div>
+         <div class="progress-text">
+           <span>已用 ${fmtClock(prog.elapsed)}</span>
+           <span>预计共 ${fmtClock(job.estimateMinSec)} ~ ${fmtClock(job.estimateMaxSec)}</span>
+         </div>`
+      : `<div class="bar indeterminate"><i></i></div>
+         <div class="progress-text"><span>排队等待 GPU</span><span></span></div>`;
     card.appendChild(wrap);
   }
 
-  if (job.status === 'done') {
-    const audio = document.createElement('audio');
-    audio.controls = true;
-    audio.preload = 'metadata';
-    audio.src = api.audioUrl(job.id);
-    audio.addEventListener('play', () => { state.playing = job.id; });
-    // max_duration 只是上限，模型常常提前收尾。不标出实际长度，
-    // 用户会以为"我要了 3 分钟只给我 2 分 10 秒"是 bug。
-    audio.addEventListener('loadedmetadata', () => {
-      const actual = Math.round(audio.duration);
-      if (!Number.isFinite(actual) || actual <= 0) return;
-      const meta = card.querySelector('.job-meta');
-      if (meta && !meta.dataset.actualShown) {
-        meta.dataset.actualShown = '1';
-        meta.textContent = meta.textContent.replace(
-          fmtDuration(job.duration),
-          `实际 ${fmtDuration(actual)}（上限 ${fmtDuration(job.duration)}）`,
-        );
-      }
-    });
-    card.appendChild(audio);
-  }
+  if (job.status === 'done') card.appendChild(buildPlayer(job, card));
 
   if (job.status === 'error' && job.error) {
     const e = document.createElement('div');
@@ -362,26 +359,125 @@ function renderJobCard(job) {
   }
 
   card.appendChild(buildActions(job));
-
   if (state.exporting.has(job.id)) card.appendChild(buildExportPanel(job));
   if (state.expanded.has(job.id)) card.appendChild(buildDetail(job));
   return card;
 }
 
-/**
- * 导出面板：把这首曲子适配到视频需要的长度。
- * 短了循环补足（交叉淡化，不是硬接），长了裁剪，两端加淡入淡出。
- */
+/** 播放器 + 频谱可视化。播放时整张卡片进入"流光"状态 */
+function buildPlayer(job, card) {
+  const box = document.createElement('div');
+  box.className = 'player';
+  box.innerHTML = '<canvas class="viz"></canvas>';
+
+  const audio = document.createElement('audio');
+  audio.controls = true;
+  audio.preload = 'metadata';
+  audio.src = api.audioUrl(job.id);
+  box.appendChild(audio);
+
+  const canvas = box.querySelector('canvas');
+  // 卡片插进 DOM 后才有真实宽高，下一帧再画待机波形
+  requestAnimationFrame(() => drawIdle(canvas));
+
+  audio.addEventListener('play', () => {
+    // 同一时刻只让一张卡片流光，否则满屏闪
+    document.querySelectorAll('.job.playing').forEach((n) => {
+      if (n !== card) {
+        n.classList.remove('playing');
+        stopVisualizer(n.querySelector('canvas'));
+        n.querySelector('audio')?.pause();
+      }
+    });
+    card.classList.add('playing');
+    attachVisualizer(canvas, audio, (level) => {
+      card.style.setProperty('--level', level.toFixed(3));
+    });
+  });
+
+  const stop = () => {
+    card.classList.remove('playing');
+    card.style.setProperty('--level', '0');
+    stopVisualizer(canvas);
+  };
+  audio.addEventListener('pause', stop);
+  audio.addEventListener('ended', stop);
+
+  return box;
+}
+
+function buildActions(job) {
+  const row = document.createElement('div');
+  row.className = 'job-actions';
+
+  const add = (name, label, onClick, danger = false) => {
+    const b = document.createElement('button');
+    b.className = `act${danger ? ' act-danger' : ''}`;
+    b.innerHTML = `${iconSpan(name)}${escapeHtml(label)}`;
+    b.addEventListener('click', onClick);
+    row.appendChild(b);
+  };
+
+  add('info', state.expanded.has(job.id) ? '收起描述' : '查看描述', () => {
+    if (state.expanded.has(job.id)) state.expanded.delete(job.id);
+    else state.expanded.add(job.id);
+    renderJobs();
+  });
+
+  add('refresh', '用这套参数再来一次', () => {
+    el.title.value = job.title ?? '';
+    el.caption.value = job.caption ?? '';
+    el.lyrics.value = job.lyrics ?? '';
+    el.duration.value = String(job.duration);
+    el.steps.value = String(job.steps);
+    el.cfgScale.value = String(job.cfgScale);
+    el.topK.value = String(job.topK);
+    el.seed.value = '';
+    updateDurationUI();
+    updateCaptionCount();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast('参数已填入，种子留空 = 生成不同版本');
+  });
+
+  if (job.status === 'done') {
+    add('download', '下载原始 MP3', () => { window.location.href = api.audioUrl(job.id, true); });
+    add('scissors', state.exporting.has(job.id) ? '收起导出' : '导出为指定时长', () => {
+      if (state.exporting.has(job.id)) state.exporting.delete(job.id);
+      else state.exporting.add(job.id);
+      renderJobs();
+    });
+  }
+
+  if (job.status === 'queued' || job.status === 'running') {
+    add('stop', '取消', async () => {
+      try { await api.cancelJob(job.id); await refreshJobs(); toast('已取消'); }
+      catch (e) { toast(`取消失败：${e.message}`); }
+    }, true);
+  } else {
+    add('trash', '从列表删除', async () => {
+      try {
+        await api.deleteJob(job.id);
+        state.expanded.delete(job.id);
+        state.exporting.delete(job.id);
+        await refreshJobs();
+      } catch (e) { toast(`删除失败：${e.message}`); }
+    }, true);
+  }
+
+  return row;
+}
+
 function buildExportPanel(job) {
   const box = document.createElement('div');
   box.className = 'export-panel';
   box.innerHTML = `
-    <div class="export-title">导出为指定时长 <span class="hint">配视频用；不足会无缝循环补足</span></div>
+    <div class="export-title">${iconSpan('loop')}导出为指定时长
+      <span class="hint">配视频用；不足会无缝循环补足</span></div>
     <div class="export-quick"></div>
     <div class="export-row">
-      <input type="number" class="export-sec" min="3" max="3600" step="1" value="60" placeholder="秒">
+      <input type="number" class="export-sec" min="3" max="3600" step="1" value="60">
       <span class="export-unit">秒</span>
-      <button class="act export-go">导出</button>
+      <button class="act export-go">${iconSpan('download')}导出</button>
     </div>
     <div class="export-status"></div>`;
 
@@ -420,9 +516,7 @@ function buildExportPanel(job) {
       a.download = `${(job.title || 'bgm').replace(/[^\w一-龥 -]/g, '_')}_${seconds}s.mp3`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
-      status.textContent = looped
-        ? `已导出 ${seconds} 秒（原曲 ${srcSec} 秒，循环补足）`
-        : `已导出 ${seconds} 秒（原曲 ${srcSec} 秒，裁剪）`;
+      status.textContent = `已导出 ${seconds} 秒（原曲 ${srcSec} 秒，${looped ? '循环补足' : '裁剪'}）`;
       status.className = 'export-status ok';
     } catch (err) {
       status.textContent = `导出失败：${err.message}`;
@@ -433,70 +527,15 @@ function buildExportPanel(job) {
   return box;
 }
 
-function buildActions(job) {
-  const row = document.createElement('div');
-  row.className = 'job-actions';
-
-  const add = (label, onClick, danger = false) => {
-    const b = document.createElement('button');
-    b.className = `act${danger ? ' act-danger' : ''}`;
-    b.textContent = label;
-    b.addEventListener('click', onClick);
-    row.appendChild(b);
-  };
-
-  add(state.expanded.has(job.id) ? '收起描述' : '查看描述', () => {
-    if (state.expanded.has(job.id)) state.expanded.delete(job.id);
-    else state.expanded.add(job.id);
-    renderJobs();
-  });
-
-  add('用这套参数再来一次', () => {
-    el.title.value = job.title ?? '';
-    el.caption.value = job.caption ?? '';
-    el.lyrics.value = job.lyrics ?? '';
-    el.duration.value = String(job.duration);
-    el.steps.value = String(job.steps);
-    el.cfgScale.value = String(job.cfgScale);
-    el.topK.value = String(job.topK);
-    el.seed.value = '';   // 换个种子出新版本
-    updateDurationUI();
-    updateCaptionCount();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    toast('参数已填入，种子留空 = 生成不同版本');
-  });
-
-  if (job.status === 'done') {
-    add('下载原始 MP3', () => { window.location.href = api.audioUrl(job.id, true); });
-    add(state.exporting.has(job.id) ? '收起导出' : '导出为指定时长', () => {
-      if (state.exporting.has(job.id)) state.exporting.delete(job.id);
-      else state.exporting.add(job.id);
-      renderJobs();
-    });
-  }
-
-  if (job.status === 'queued' || job.status === 'running') {
-    add('取消', async () => {
-      try { await api.cancelJob(job.id); await refreshJobs(); toast('已取消'); }
-      catch (e) { toast(`取消失败：${e.message}`); }
-    }, true);
-  } else {
-    add('从列表删除', async () => {
-      try { await api.deleteJob(job.id); state.expanded.delete(job.id); await refreshJobs(); }
-      catch (e) { toast(`删除失败：${e.message}`); }
-    }, true);
-  }
-
-  return row;
-}
-
 function buildDetail(job) {
   const d = document.createElement('div');
   d.className = 'job-detail';
   d.textContent =
     `【音乐描述】\n${job.caption}\n\n【歌词】\n${job.lyrics}\n\n`
     + `【参数】duration=${job.duration}s  seed=${job.seed}  steps=${job.steps}  `
-    + `cfg=${job.cfgScale}  top_k=${job.topK}`;
+    + `cfg=${job.cfgScale}  top_k=${job.topK}`
+    + (Number.isFinite(job.computeSec) ? `\n【耗时】生成 ${job.computeSec.toFixed(1)}s` : '')
+    + (Number.isFinite(job.actualSec) ? ` · 输出音频 ${job.actualSec.toFixed(2)}s` : '');
   return d;
 }
 
@@ -506,13 +545,10 @@ async function refreshJobs() {
   try {
     const { jobs } = await api.listJobs();
     state.jobs = jobs;
-    // renderJobs 现在是增量的：状态没变的卡片原样保留，
-    // 播放中的音频、正在导出的面板都不会被打断
     renderJobs();
   } catch { /* 后端短暂不可用时保持现状 */ }
 }
 
-/** 只刷新进行中任务的进度条，不重建整个列表 */
 function updateLiveProgressOnly() {
   for (const job of state.jobs) {
     const prog = jobProgress(job);
@@ -528,6 +564,7 @@ function updateLiveProgressOnly() {
 /* ============================ 启动 ============================ */
 
 async function init() {
+  el.brandMark.innerHTML = icon('wave');
   renderTagbar();
   updateCaptionCount();
 
@@ -546,14 +583,22 @@ async function init() {
   }
 
   await refreshJobs();
-  // 已有完成记录 = 模型多半还在内存里，别再按冷启动报预估
   state.everGenerated = state.jobs.some((j) => j.status === 'done');
   updateDurationUI();
   await refreshHealth();
+  await autoOpenIfNeeded();
 
   el.caption.addEventListener('input', updateCaptionCount);
   el.duration.addEventListener('input', updateDurationUI);
   el.generate.addEventListener('click', submit);
+  $('openSetup').addEventListener('click', openSetup);
+  $('closeSetup').addEventListener('click', closeSetup);
+  $('setupOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'setupOverlay') closeSetup();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('setupOverlay').hidden) closeSetup();
+  });
 
   document.querySelectorAll('.duration-quick button').forEach((b) => {
     b.addEventListener('click', () => {
