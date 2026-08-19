@@ -174,6 +174,24 @@ input[type=range]::-moz-range-thumb {
 }
 .duration-quick button:hover { color: var(--accent); border-color: var(--accent-dim); }
 
+.duration-warn {
+  margin: 12px 0 0; padding-top: 11px; border-top: 1px solid var(--line-soft);
+  font-size: 11.5px; line-height: 1.65; color: var(--text-faint);
+}
+.duration-warn strong { color: var(--warn); font-weight: 600; }
+
+/* ---------- 变体数量 ---------- */
+.variants-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.vbtn {
+  padding: 7px 15px; font-size: 12.5px; font-family: inherit; cursor: pointer;
+  background: var(--bg-sunken); color: var(--text-dim);
+  border: 1px solid var(--line); border-radius: 8px; transition: all .15s;
+}
+.vbtn:hover { background: var(--bg-hover); color: var(--text); }
+.vbtn.active { background: #2a1f0d; border-color: var(--accent-dim); color: var(--accent); }
+.variants-total { margin-top: 7px; font-size: 11.5px; color: var(--text-faint); }
+.variants-total.warn { color: var(--warn); }
+
 /* ---------- 高级 ---------- */
 .advanced {
   border: 1px solid var(--line); border-radius: 10px;
@@ -275,6 +293,31 @@ input[type=range]::-moz-range-thumb {
 }
 .act:hover { background: var(--bg-hover); color: var(--text); }
 .act-danger:hover { color: var(--err); border-color: #5a2a2e; }
+
+/* ---------- 导出面板 ---------- */
+.export-panel {
+  margin-top: 11px; padding: 12px 13px;
+  background: #0d0f14; border: 1px solid var(--line-soft); border-radius: 9px;
+}
+.export-title { font-size: 12.5px; font-weight: 600; margin-bottom: 9px; }
+.export-quick { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 9px; }
+.export-row { display: flex; align-items: center; gap: 8px; }
+/* 选择器要比 input[type=number]（0,1,1）更特异，否则被通用的 width:100% 盖掉，
+   输入框撑满一行、把导出按钮挤成竖排两个字 */
+.export-row .export-sec {
+  width: 96px; flex: none; padding: 6px 9px;
+  font-family: var(--mono); font-size: 12.5px;
+  background: var(--bg-sunken); color: var(--text);
+  border: 1px solid var(--line); border-radius: 7px;
+}
+.export-unit { font-size: 12px; color: var(--text-faint); flex: none; }
+.export-go {
+  flex: none; white-space: nowrap;
+  border-color: var(--accent-dim) !important; color: var(--accent) !important;
+}
+.export-status { margin-top: 8px; font-size: 11.5px; color: var(--text-faint); min-height: 16px; }
+.export-status.ok  { color: var(--ok); }
+.export-status.err { color: var(--err); }
 
 .job-error {
   margin-top: 10px; padding: 9px 11px; border-radius: 8px;

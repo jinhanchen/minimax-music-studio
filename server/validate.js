@@ -109,8 +109,24 @@ export function validateGenerateRequest(body) {
     ? body.title.trim().slice(0, 120)
     : '';
 
+  // 一次挂多个变体：BGM 场景一次不一定满意，而单次要等几十分钟，
+  // 与其失望一次再重排队，不如一口气排几个种子，回来挑。
+  const variants = clampInt(body.variants, 'variants', { min: 1, max: 5, fallback: 1 });
+
   return Object.freeze({
-    caption, lyrics, duration, steps, cfgScale, topK, quality, title,
+    caption, lyrics, duration, steps, cfgScale, topK, quality, title, variants,
     seed: resolveSeed(body.seed),
   });
+}
+
+/** 导出时长的校验（BGM 适配用） */
+export function validateExportRequest(query) {
+  const seconds = Number(query.seconds);
+  if (!Number.isFinite(seconds)) {
+    throw new ValidationError('seconds', 'seconds 必须是数字');
+  }
+  if (seconds < 3 || seconds > 3600) {
+    throw new ValidationError('seconds', '导出时长必须在 3 ~ 3600 秒之间');
+  }
+  return Math.round(seconds * 100) / 100;
 }

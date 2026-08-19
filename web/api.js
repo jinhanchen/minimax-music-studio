@@ -30,3 +30,6 @@ export const estimate    = (duration, coldStart) =>
 
 export const audioUrl    = (id, download = false) =>
   `/api/jobs/${encodeURIComponent(id)}/audio${download ? '?download=1' : ''}`;
+
+export const exportUrl   = (id, seconds) =>
+  `/api/jobs/${encodeURIComponent(id)}/export?seconds=${encodeURIComponent(seconds)}`;

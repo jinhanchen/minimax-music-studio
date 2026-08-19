@@ -79,6 +79,24 @@
         <button type="button" data-dur="180">3 分钟</button>
         <button type="button" data-dur="360">6 分钟</button>
       </div>
+      <p class="duration-warn">
+        注意：这是<strong>上限</strong>不是保证。模型自己决定何时收尾，实测同一段描述换个种子
+        可能给满 20 秒、也可能只给 13 秒。做 BGM 请用完成后的<strong>「导出为指定时长」</strong>补足。
+      </p>
+    </div>
+
+    <div class="field variants-field">
+      <label for="variants">
+        一次生成几个变体
+        <span class="hint">只换种子，其余参数相同 —— 排一批回来挑，别等失望了再重排</span>
+      </label>
+      <div class="variants-row" id="variantsRow">
+        <button type="button" class="vbtn active" data-v="1">1 个</button>
+        <button type="button" class="vbtn" data-v="2">2 个</button>
+        <button type="button" class="vbtn" data-v="3">3 个</button>
+        <button type="button" class="vbtn" data-v="5">5 个</button>
+      </div>
+      <div class="variants-total" id="variantsTotal"></div>
     </div>
 
     <details class="advanced">

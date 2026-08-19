@@ -8,9 +8,11 @@
  *   3. 生成历史落盘，跨重启可查
  */
 import http from 'node:http';
+import path from 'node:path';
 import { Readable } from 'node:stream';
-import { PORT, COMFY_URL, MODELS, LIMITS, DEFAULTS } from './config.js';
-import { validateGenerateRequest, ValidationError } from './validate.js';
+import { PORT, COMFY_URL, COMFY_OUTPUT, MODELS, LIMITS, DEFAULTS } from './config.js';
+import { validateGenerateRequest, validateExportRequest, ValidationError } from './validate.js';
+import { exportWithDuration, FfmpegError } from './export-audio.js';
 import { estimateDuration } from './estimate.js';
 import * as comfy from './comfy-api.js';
 import * as library from './library.js';
@@ -94,8 +96,16 @@ const routes = {
 
   'POST /api/jobs': async (req) => {
     const params = validateGenerateRequest(await readBody(req));
-    const job = await jobs.submitJob(params);
-    return { status: 201, body: job };
+    // 变体之间只有种子不同，其余参数完全一致 —— 这样回头对比时变量唯一
+    const created = [];
+    for (let i = 0; i < params.variants; i += 1) {
+      const seed = i === 0 ? params.seed : Math.floor(Math.random() * 2 ** 48);
+      const title = params.variants > 1
+        ? `${params.title || '未命名'} · 变体 ${i + 1}`
+        : params.title;
+      created.push(await jobs.submitJob({ ...params, seed, title }));
+    }
+    return { status: 201, body: { jobs: created, count: created.length } };
   },
 
   'POST /api/jobs/:id/cancel': async (_req, { id }) => {
@@ -111,6 +121,30 @@ const routes = {
       : { status: 404, body: { error: '任务不存在' } };
   },
 };
+
+/**
+ * 导出为指定时长（BGM 适配）。
+ * 短了循环补足、长了裁剪，两端加淡入淡出。派生产物不落盘，直接流回去。
+ */
+async function handleExport(res, jobId, seconds) {
+  const job = await library.getJob(jobId);
+  if (!job?.audio) return sendJson(res, 404, { error: '这个任务还没有音频输出' });
+
+  const src = path.join(COMFY_OUTPUT, job.audio.subfolder ?? '', job.audio.filename);
+  const { buffer, srcSec, outSec, looped } = await exportWithDuration(src, seconds);
+
+  const base = (job.title || 'bgm').replace(/[^\p{L}\p{N}_ -]/gu, '_').slice(0, 50);
+  const name = `${base}_${seconds}s.mp3`;
+  res.writeHead(200, {
+    'Content-Type': 'audio/mpeg',
+    'Content-Length': buffer.length,
+    'X-Source-Duration': srcSec.toFixed(2),
+    'X-Output-Duration': outSec.toFixed(2),
+    'X-Looped': looped ? '1' : '0',
+    'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+  });
+  res.end(buffer);
+}
 
 /** 音频流单独处理：要透传二进制，不走 JSON 路由 */
 async function handleAudio(res, jobId, { download }) {
@@ -165,6 +199,13 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // 导出为指定时长
+    const exportMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/export$/);
+    if (req.method === 'GET' && exportMatch) {
+      const seconds = validateExportRequest({ seconds: url.searchParams.get('seconds') });
+      return await handleExport(res, decodeURIComponent(exportMatch[1]), seconds);
+    }
+
     const matched = matchRoute(req.method, pathname);
     if (matched) {
       const { status, body } = await matched.handler(req, matched.params);
@@ -187,6 +228,12 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 400, {
         error: 'ComfyUI 拒绝了这个任务',
         detail: err.payload,
+      });
+    }
+    if (err instanceof FfmpegError) {
+      return sendJson(res, 500, {
+        error: `音频处理失败：${err.message}。确认 ffmpeg 和 ffprobe 在 PATH 里。`,
+        detail: err.stderr,
       });
     }
     console.error('[server] 未处理异常:', err);

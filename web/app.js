@@ -19,6 +19,9 @@ const state = {
   filter: 'all',
   /** 记住每张卡是否展开了描述，刷新列表时不要弹回去 */
   expanded: new Set(),
+  /** 同上，记住哪张卡打开了导出面板 */
+  exporting: new Set(),
+  variants: 1,
   /** 正在播放的任务，重渲染时保住播放进度 */
   playing: null,
   everGenerated: false,
@@ -143,11 +146,24 @@ function updateDurationUI() {
       el.etaValue.textContent = est.text;
       el.etaNote.textContent = `自回归编码器 ${est.arSteps.toLocaleString()} 步`;
       el.eta.classList.toggle('eta-long', est.maxSec > 20 * 60);
-      el.genEta.textContent = est.text;
+      el.genEta.textContent = state.variants > 1
+        ? `${state.variants} 个 · 单个${est.text}` : est.text;
+      updateVariantsTotal(est);
     } catch {
       el.etaValue.textContent = '—';
     }
   }, 120);
+}
+
+/** 变体是串行跑的（ComfyUI 一次一个任务），总时长要乘出来给用户看 */
+function updateVariantsTotal(est) {
+  const box = $('variantsTotal');
+  if (!box) return;
+  if (state.variants <= 1) { box.textContent = ''; box.className = 'variants-total'; return; }
+  const totalMin = Math.round(est.minSec * state.variants / 60);
+  const totalMax = Math.round(est.maxSec * state.variants / 60);
+  box.textContent = `串行排队，全部跑完约 ${totalMin} ~ ${totalMax} 分钟`;
+  box.className = totalMax > 90 ? 'variants-total warn' : 'variants-total';
 }
 
 /* ============================ 提交 ============================ */
@@ -176,14 +192,17 @@ async function submit() {
     steps: Number(el.steps.value),
     cfgScale: Number(el.cfgScale.value),
     topK: Number(el.topK.value),
+    variants: state.variants,
   };
 
   el.generate.disabled = true;
   el.generate.querySelector('.gen-label').textContent = '提交中…';
   try {
-    await api.createJob(payload);
+    const r = await api.createJob(payload);
     state.everGenerated = true;
-    toast('已加入队列 —— 可以关掉这个页面，生成在后台继续。');
+    toast(r.count > 1
+      ? `${r.count} 个变体已排队 —— 可以关掉页面，跑完回来挑。`
+      : '已加入队列 —— 可以关掉这个页面，生成在后台继续。');
     await refreshJobs();
     updateDurationUI();
   } catch (err) {
@@ -210,6 +229,23 @@ function jobProgress(job) {
   return { elapsed, pct: Math.min(96, (elapsed / total) * 100), total };
 }
 
+/**
+ * 卡片指纹：只有这些字段变了，卡片才需要重建。
+ *
+ * 之前每次轮询都 innerHTML='' 整体重建，看着简单，实际会把卡片上一切
+ * 瞬时状态清掉 —— 导出进度文字写进了已脱离文档的节点、音频元素每 4 秒
+ * 被销毁重建导致 /audio 请求反复 ERR_ABORTED。增量渲染是这类 bug 的
+ * 根治办法，不是优化。
+ */
+const cardSignature = (job) => [
+  job.id, job.status, job.audio?.filename ?? '', job.error ?? '',
+  state.expanded.has(job.id) ? 'e' : '',
+  state.exporting.has(job.id) ? 'x' : '',
+].join('|');
+
+/** 已渲染卡片的指纹，用于判断能否复用 DOM */
+const rendered = new Map();
+
 function renderJobs() {
   const filtered = state.jobs.filter((j) => {
     if (state.filter === 'active') return j.status === 'queued' || j.status === 'running';
@@ -218,14 +254,41 @@ function renderJobs() {
   });
 
   if (filtered.length === 0) {
+    rendered.clear();
     el.joblist.innerHTML = `<div class="empty">${
       state.filter === 'all' ? '还没有作品。左边写点什么，点"开始生成"。' : '这个分类下没有内容。'
     }</div>`;
     return;
   }
 
-  el.joblist.innerHTML = '';
-  for (const job of filtered) el.joblist.appendChild(renderJobCard(job));
+  el.joblist.querySelector('.empty')?.remove();
+
+  const wanted = new Set(filtered.map((j) => j.id));
+  for (const [id, entry] of rendered) {
+    if (!wanted.has(id)) { entry.node.remove(); rendered.delete(id); }
+  }
+
+  let prev = null;
+  for (const job of filtered) {
+    const sig = cardSignature(job);
+    const existing = rendered.get(job.id);
+    let node;
+    if (existing && existing.sig === sig) {
+      node = existing.node;              // 状态没变 —— 原样保留，别碰它
+    } else {
+      node = renderJobCard(job);
+      if (existing) existing.node.replaceWith(node);
+      rendered.set(job.id, { sig, node });
+    }
+    // 保证顺序正确（新任务插到最前）
+    const shouldFollow = prev ? prev.nextSibling : el.joblist.firstChild;
+    if (node !== shouldFollow) {
+      el.joblist.insertBefore(node, shouldFollow);
+    }
+    prev = node;
+  }
+
+  updateLiveProgressOnly();
 }
 
 function renderJobCard(job) {
@@ -296,8 +359,74 @@ function renderJobCard(job) {
 
   card.appendChild(buildActions(job));
 
+  if (state.exporting.has(job.id)) card.appendChild(buildExportPanel(job));
   if (state.expanded.has(job.id)) card.appendChild(buildDetail(job));
   return card;
+}
+
+/**
+ * 导出面板：把这首曲子适配到视频需要的长度。
+ * 短了循环补足（交叉淡化，不是硬接），长了裁剪，两端加淡入淡出。
+ */
+function buildExportPanel(job) {
+  const box = document.createElement('div');
+  box.className = 'export-panel';
+  box.innerHTML = `
+    <div class="export-title">导出为指定时长 <span class="hint">配视频用；不足会无缝循环补足</span></div>
+    <div class="export-quick"></div>
+    <div class="export-row">
+      <input type="number" class="export-sec" min="3" max="3600" step="1" value="60" placeholder="秒">
+      <span class="export-unit">秒</span>
+      <button class="act export-go">导出</button>
+    </div>
+    <div class="export-status"></div>`;
+
+  const input = box.querySelector('.export-sec');
+  const status = box.querySelector('.export-status');
+  const quick = box.querySelector('.export-quick');
+
+  for (const s of [15, 30, 60, 90, 120, 180]) {
+    const b = document.createElement('button');
+    b.className = 'act';
+    b.textContent = s < 60 ? `${s} 秒` : `${s / 60} 分`;
+    b.addEventListener('click', () => { input.value = String(s); });
+    quick.appendChild(b);
+  }
+
+  box.querySelector('.export-go').addEventListener('click', async () => {
+    const seconds = Number(input.value);
+    if (!Number.isFinite(seconds) || seconds < 3 || seconds > 3600) {
+      status.textContent = '时长要在 3 ~ 3600 秒之间';
+      status.className = 'export-status err';
+      return;
+    }
+    status.textContent = '处理中…（循环拼接需要几秒）';
+    status.className = 'export-status';
+    try {
+      const res = await fetch(api.exportUrl(job.id, seconds));
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error ?? `HTTP ${res.status}`);
+      }
+      const looped = res.headers.get('X-Looped') === '1';
+      const srcSec = res.headers.get('X-Source-Duration');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(job.title || 'bgm').replace(/[^\w一-龥 -]/g, '_')}_${seconds}s.mp3`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      status.textContent = looped
+        ? `已导出 ${seconds} 秒（原曲 ${srcSec} 秒，循环补足）`
+        : `已导出 ${seconds} 秒（原曲 ${srcSec} 秒，裁剪）`;
+      status.className = 'export-status ok';
+    } catch (err) {
+      status.textContent = `导出失败：${err.message}`;
+      status.className = 'export-status err';
+    }
+  });
+
+  return box;
 }
 
 function buildActions(job) {
@@ -334,7 +463,12 @@ function buildActions(job) {
   });
 
   if (job.status === 'done') {
-    add('下载 MP3', () => { window.location.href = api.audioUrl(job.id, true); });
+    add('下载原始 MP3', () => { window.location.href = api.audioUrl(job.id, true); });
+    add(state.exporting.has(job.id) ? '收起导出' : '导出为指定时长', () => {
+      if (state.exporting.has(job.id)) state.exporting.delete(job.id);
+      else state.exporting.add(job.id);
+      renderJobs();
+    });
   }
 
   if (job.status === 'queued' || job.status === 'running') {
@@ -368,13 +502,8 @@ async function refreshJobs() {
   try {
     const { jobs } = await api.listJobs();
     state.jobs = jobs;
-    // 正在播放时不要重建 DOM，否则音频会被打断
-    const playingLive = state.playing
-      && el.joblist.querySelector(`.job[data-id="${CSS.escape(state.playing)}"] audio`);
-    if (playingLive && !playingLive.paused) {
-      updateLiveProgressOnly();
-      return;
-    }
+    // renderJobs 现在是增量的：状态没变的卡片原样保留，
+    // 播放中的音频、正在导出的面板都不会被打断
     renderJobs();
   } catch { /* 后端短暂不可用时保持现状 */ }
 }
@@ -425,6 +554,14 @@ async function init() {
   document.querySelectorAll('.duration-quick button').forEach((b) => {
     b.addEventListener('click', () => {
       el.duration.value = b.dataset.dur;
+      updateDurationUI();
+    });
+  });
+
+  document.querySelectorAll('.vbtn').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.vbtn').forEach((x) => x.classList.toggle('active', x === b));
+      state.variants = Number(b.dataset.v);
       updateDurationUI();
     });
   });
