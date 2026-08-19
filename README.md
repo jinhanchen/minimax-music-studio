@@ -23,17 +23,25 @@
 ## 快速开始
 
 ```bash
-# 1. 自检环境（先跑这个，它会告诉你缺什么）
-npm run doctor
+# 装一个桌面快捷方式，之后双击就行（推荐）
+npm run shortcut
+```
 
-# 2. 启动 ComfyUI（保持这个窗口开着）
-npm run comfyui
+之后双击桌面上的「MiniMax 音乐工作台」——它会按需拉起 ComfyUI 和工作台服务，
+等两边就绪再打开浏览器。已经在跑的不会重复启动，反复双击是安全的。
 
-# 3. 另开一个窗口，启动工作台
-npm start
+手动启动也可以：
+
+```bash
+npm run doctor    # 自检环境，缺什么它会告诉你
+npm run comfyui   # 启动 ComfyUI，保持窗口开着（约 70 秒）
+npm start         # 另开一个窗口启动工作台
 ```
 
 然后打开 <http://127.0.0.1:5178>
+
+图标想改就编辑 `assets/icon.html`，然后 `npm run icon` 重新生成 `.ico`
+（7 种尺寸，16~256px，逐张校验实际像素）。
 
 ---
 
@@ -194,7 +202,14 @@ Arrangement:     乐器、律动、低音、打击乐、空间感
 ```
 minimax-music-studio/
 ├── comfy/extra_model_paths.yaml   模型目录配置
-├── scripts/start-comfyui.ps1      启动 ComfyUI（带版本闸门）
+├── assets/
+│   ├── icon.html                  图标源（SVG）
+│   └── icon.ico                   7 尺寸图标，快捷方式用
+├── scripts/
+│   ├── launch.ps1                 一键启动（按需拉起两个服务后开浏览器）
+│   ├── start-comfyui.ps1          启动 ComfyUI（带版本闸门）
+│   ├── install-shortcut.ps1       创建桌面快捷方式
+│   └── build-icon.mjs             HTML → 多尺寸 .ico
 ├── server/
 │   ├── index.js         HTTP 入口与路由
 │   ├── config.js        全部配置与常量

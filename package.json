@@ -7,6 +7,9 @@
   "scripts": {
     "start": "node server/index.js",
     "comfyui": "powershell -ExecutionPolicy Bypass -File scripts/start-comfyui.ps1",
+    "launch": "powershell -ExecutionPolicy Bypass -File scripts/launch.ps1",
+    "shortcut": "powershell -ExecutionPolicy Bypass -File scripts/install-shortcut.ps1",
+    "icon": "node scripts/build-icon.mjs",
     "doctor": "node server/doctor.js"
   },
   "engines": {

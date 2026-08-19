@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  /* 尺寸由渲染脚本注入，绝不用 vw/vh —— 无头浏览器的真实视口和
+     --window-size 不是一回事，用视口单位会把图标摊大再被裁掉一角 */
+  #icon { display: block; }
+</style>
+</head>
+<body>
+<svg id="icon" width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%"   stop-color="#ffc061"/>
+      <stop offset="45%"  stop-color="#f0a53c"/>
+      <stop offset="100%" stop-color="#c06a15"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="55%"  stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 底板：圆角方形，和工作台顶栏的 brand-mark 同一套琥珀渐变 -->
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#plate)"/>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#sheen)"/>
+
+  <!-- 八分音符：符干 + 符尾 + 符头。形状做粗，保证 16px 下还能认出来 -->
+  <g fill="#2a1a04">
+    <rect x="150" y="52" width="17" height="118" rx="8"/>
+    <path d="M167 52c26 10 46 21 46 45 0 12-6 22-15 30 3-19-9-30-31-39z"/>
+    <ellipse cx="126" cy="176" rx="41" ry="32" transform="rotate(-20 126 176)"/>
+  </g>
+
+  <!-- 左下三根波形条，暗示"音频"而非单纯"音乐" -->
+  <g fill="#2a1a04" opacity="0.55">
+    <rect x="44"  y="150" width="13" height="30" rx="6"/>
+    <rect x="66"  y="132" width="13" height="66" rx="6"/>
+    <rect x="88"  y="158" width="13" height="22" rx="6"/>
+  </g>
+</svg>
+</body>
+</html>
