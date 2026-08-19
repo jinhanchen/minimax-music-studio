@@ -1,0 +1,9 @@
+# 指向 Comfy Desktop 的共享模型目录，避免模型重复占盘
+comfy_desktop_shared:
+  base_path: E:/Comfy-Desktop/ComfyUI-Shared/models
+  diffusion_models: diffusion_models
+  text_encoders: text_encoders
+  vae: vae
+  checkpoints: checkpoints
+  loras: loras
+  audio_encoders: audio_encoders

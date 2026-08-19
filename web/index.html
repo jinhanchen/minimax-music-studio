@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniMax Music 3 工作台</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">♪</span>
+    <div>
+      <h1>MiniMax Music 3 工作台</h1>
+      <p class="brand-sub">本地生成 · 无限次 · 不上传</p>
+    </div>
+  </div>
+  <div class="health" id="health">
+    <span class="dot dot-idle"></span><span class="health-text">正在检查 ComfyUI…</span>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============ 左：创作面板 ============ -->
+  <section class="panel compose">
+    <h2 class="panel-title">创作</h2>
+
+    <div class="field">
+      <label>曲风预设 <span class="hint">点一个作为起点，然后随便改</span></label>
+      <div class="presets" id="presets"></div>
+    </div>
+
+    <div class="field">
+      <label for="title">标题 <span class="hint">留空自动从描述取</span></label>
+      <input type="text" id="title" placeholder="例如：雨夜书房">
+    </div>
+
+    <div class="field">
+      <label for="caption">
+        音乐描述 <span class="req">必填</span>
+        <span class="hint">三段式：Global Metadata / Vocal Details / Arrangement</span>
+      </label>
+      <textarea id="caption" rows="9" placeholder="Global Metadata: 曲风、BPM、调性、情绪走向、制作风格&#10;Vocal Details: 人声性别、音色、演唱方式、和声、效果&#10;Arrangement: 乐器、律动、低音、打击乐、空间感"></textarea>
+      <div class="counter"><span id="captionCount">0</span> 字符</div>
+    </div>
+
+    <div class="field">
+      <label for="lyrics">
+        歌词
+        <span class="hint">用 [Verse] [Chorus] 等标签分段；留空 = 纯器乐</span>
+      </label>
+      <textarea id="lyrics" rows="7" placeholder="[Intro]&#10;&#10;[Verse]&#10;第一段歌词…&#10;&#10;[Chorus]&#10;副歌…&#10;&#10;[Outro]"></textarea>
+      <div class="tagbar" id="tagbar"></div>
+    </div>
+
+    <!-- 时长 + 耗时预估：本工具最重要的诚实提示 -->
+    <div class="field duration-field">
+      <label for="duration">
+        时长
+        <span class="hint">这台机器上，时长直接决定等多久</span>
+      </label>
+      <div class="duration-row">
+        <input type="range" id="duration" min="5" max="360" step="5" value="60">
+        <output id="durationOut">60 秒</output>
+      </div>
+      <div class="eta" id="eta">
+        <span class="eta-label">预计耗时</span>
+        <strong class="eta-value" id="etaValue">计算中…</strong>
+        <span class="eta-note" id="etaNote"></span>
+      </div>
+      <div class="duration-quick">
+        <button type="button" data-dur="20">20 秒</button>
+        <button type="button" data-dur="30">30 秒</button>
+        <button type="button" data-dur="60">1 分钟</button>
+        <button type="button" data-dur="120">2 分钟</button>
+        <button type="button" data-dur="180">3 分钟</button>
+        <button type="button" data-dur="360">6 分钟</button>
+      </div>
+    </div>
+
+    <details class="advanced">
+      <summary>高级参数</summary>
+      <div class="adv-grid">
+        <div class="field">
+          <label for="seed">随机种子 <span class="hint">留空随机；固定可复现</span></label>
+          <input type="number" id="seed" min="0" placeholder="随机">
+        </div>
+        <div class="field">
+          <label for="steps">扩散步数 <span class="hint">默认 30</span></label>
+          <input type="number" id="steps" min="1" max="100" value="30">
+        </div>
+        <div class="field">
+          <label for="cfgScale">CFG Scale <span class="hint">默认 1.7</span></label>
+          <input type="number" id="cfgScale" min="0" max="100" step="0.1" value="1.7">
+        </div>
+        <div class="field">
+          <label for="topK">Top-K <span class="hint">默认 50</span></label>
+          <input type="number" id="topK" min="1" max="16384" value="50">
+        </div>
+      </div>
+      <p class="adv-note">
+        扩散步数只影响那 13 秒的采样阶段，调它省不了多少时间 ——
+        真正的耗时在自回归编码器，它的步数 = 时长 × 25，只能靠缩短时长来减少。
+      </p>
+    </details>
+
+    <button class="generate" id="generate">
+      <span class="gen-label">开始生成</span>
+      <span class="gen-eta" id="genEta"></span>
+    </button>
+    <p class="form-error" id="formError" hidden></p>
+  </section>
+
+  <!-- ============ 右：队列 + 曲库 ============ -->
+  <section class="panel results">
+    <div class="results-head">
+      <h2 class="panel-title">曲库</h2>
+      <div class="tabs">
+        <button class="tab active" data-tab="all">全部</button>
+        <button class="tab" data-tab="active">进行中</button>
+        <button class="tab" data-tab="done">已完成</button>
+      </div>
+    </div>
+    <div class="joblist" id="joblist">
+      <div class="empty">还没有作品。左边写点什么，点"开始生成"。</div>
+    </div>
+  </section>
+
+</main>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>

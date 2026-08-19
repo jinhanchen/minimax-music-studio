@@ -1,0 +1,17 @@
+{
+  "name": "minimax-music-studio",
+  "version": "1.0.0",
+  "description": "MiniMax Music 3 本地音乐生成工作台 —— ComfyUI 之上的极简前端，零依赖",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "comfyui": "powershell -ExecutionPolicy Bypass -File scripts/start-comfyui.ps1",
+    "doctor": "node server/doctor.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "private": true
+}

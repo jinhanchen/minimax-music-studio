@@ -1,0 +1,29 @@
+# 生成记录（本机数据，含个人创作内容，不进版本库）
+data/
+
+# 依赖 —— 本项目零依赖，这条只是防止将来误提交
+node_modules/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志与临时
+*.log
+*.tmp
+*.bak
+
+# 模型文件绝不进 git（11GB，且有官方来源）
+*.safetensors
+*.ckpt
+*.pt
+*.bin
+
+# 音频产物
+*.mp3
+*.flac
+*.opus
+*.wav
