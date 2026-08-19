@@ -670,7 +670,7 @@ function updateLiveProgressOnly() {
 /* ============================ 启动 ============================ */
 
 async function init() {
-  el.brandMark.innerHTML = icon('wave');
+  el.brandMark.innerHTML = icon('brand');
   renderTagbar();
   updateCaptionCount();
 

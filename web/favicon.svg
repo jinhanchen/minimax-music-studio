@@ -1,20 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
   <defs>
-    <linearGradient id="p" x1="0" y1="0" x2="0.6" y2="1">
-      <stop offset="0%" stop-color="#ffc061"/>
+    <linearGradient id="p" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0%" stop-color="#ffc873"/>
       <stop offset="45%" stop-color="#f0a53c"/>
-      <stop offset="100%" stop-color="#c06a15"/>
+      <stop offset="100%" stop-color="#bd6612"/>
     </linearGradient>
   </defs>
-  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#p)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#p)"/>
+  <path d="M128 26 Q137 74 186 84 Q137 94 128 142 Q119 94 70 84 Q119 74 128 26 Z" fill="#2a1a04"/>
   <g fill="#2a1a04">
-    <rect x="150" y="52" width="17" height="118" rx="8"/>
-    <path d="M167 52c26 10 46 21 46 45 0 12-6 22-15 30 3-19-9-30-31-39z"/>
-    <ellipse cx="126" cy="176" rx="41" ry="32" transform="rotate(-20 126 176)"/>
-  </g>
-  <g fill="#2a1a04" opacity="0.55">
-    <rect x="44" y="150" width="13" height="30" rx="6"/>
-    <rect x="66" y="132" width="13" height="66" rx="6"/>
-    <rect x="88" y="158" width="13" height="22" rx="6"/>
+    <rect x="36" y="192" width="28" height="26" rx="14"/>
+    <rect x="75" y="172" width="28" height="46" rx="14"/>
+    <rect x="114" y="156" width="28" height="62" rx="14"/>
+    <rect x="153" y="178" width="28" height="40" rx="14"/>
+    <rect x="192" y="194" width="28" height="24" rx="14"/>
   </g>
 </svg>

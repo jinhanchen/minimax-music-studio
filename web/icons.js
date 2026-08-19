@@ -71,6 +71,17 @@ export const ICONS = Object.freeze({
   spark: svg('<path d="M12 2.5 13.9 9 20.5 11 13.9 13 12 19.5 10.1 13 3.5 11 10.1 9z"/>'),
   folder: svg('<path d="M3 7.5A2 2 0 0 1 5 5.5h4l2 2.5h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
   stop: svg('<rect x="6" y="6" width="12" height="12" rx="2"/>'),
+
+  /** 品牌标：与桌面图标同一形状（火花 = 生成，频谱 = 音频） */
+  brand: svg(
+    '<path d="M12 2.2 Q12.9 6.9 17.6 7.9 Q12.9 8.9 12 13.6 Q11.1 8.9 6.4 7.9 Q11.1 6.9 12 2.2 Z"/>'
+    + '<rect x="2.6" y="18.1" width="2.9" height="2.9" rx="1.45"/>'
+    + '<rect x="6.5" y="16.1" width="2.9" height="4.9" rx="1.45"/>'
+    + '<rect x="10.5" y="14.5" width="2.9" height="6.5" rx="1.45"/>'
+    + '<rect x="14.5" y="16.7" width="2.9" height="4.3" rx="1.45"/>'
+    + '<rect x="18.5" y="18.3" width="2.9" height="2.7" rx="1.45"/>',
+    { fill: true },
+  ),
 });
 
 /** 找不到就退回一个中性圆点，绝不渲染成空白 */

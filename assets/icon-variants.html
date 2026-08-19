@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+
+<!-- 共用渐变定义 -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0%"   stop-color="#ffc873"/>
+      <stop offset="45%"  stop-color="#f0a53c"/>
+      <stop offset="100%" stop-color="#bd6612"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffdca0"/>
+      <stop offset="50%"  stop-color="#f5b048"/>
+      <stop offset="100%" stop-color="#d07f1c"/>
+    </linearGradient>
+    <linearGradient id="darkPlate" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0%"   stop-color="#24262e"/>
+      <stop offset="100%" stop-color="#111318"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- ============ A. 频谱条：App 播放时的真实样子 ============ -->
+<svg class="variant" id="v-spectrum" width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#plate)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#sheen)"/>
+  <g fill="#2a1a04">
+    <rect x="52"  y="106" width="22" height="44"  rx="11"/>
+    <rect x="88"  y="76"  width="22" height="104" rx="11"/>
+    <rect x="124" y="52"  width="22" height="152" rx="11"/>
+    <rect x="160" y="88"  width="22" height="80"  rx="11"/>
+    <rect x="196" y="114" width="22" height="28"  rx="11"/>
+  </g>
+</svg>
+
+<!-- ============ B. 深底频谱：更像"设备/工作台"而非"播放器" ============ -->
+<svg class="variant" id="v-dark" width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#darkPlate)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="none" stroke="#3a3f4d" stroke-width="2"/>
+  <g fill="url(#barGrad)">
+    <rect x="52"  y="106" width="22" height="44"  rx="11"/>
+    <rect x="88"  y="76"  width="22" height="104" rx="11"/>
+    <rect x="124" y="52"  width="22" height="152" rx="11"/>
+    <rect x="160" y="88"  width="22" height="80"  rx="11"/>
+    <rect x="196" y="114" width="22" height="28"  rx="11"/>
+  </g>
+</svg>
+
+<!-- ============ C. 声波环：抽象、更"高级"，暗示声音发散 ============ -->
+<svg class="variant" id="v-rings" width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#plate)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#sheen)"/>
+  <g fill="none" stroke="#2a1a04" stroke-linecap="round">
+    <circle cx="92" cy="128" r="17" fill="#2a1a04" stroke="none"/>
+    <path d="M126 92a48 48 0 0 1 0 72"  stroke-width="17"/>
+    <path d="M158 68a86 86 0 0 1 0 120" stroke-width="17" opacity="0.62"/>
+    <path d="M190 46a124 124 0 0 1 0 164" stroke-width="17" opacity="0.3"/>
+  </g>
+</svg>
+
+<!-- ============ D. 波形 M：MiniMax 的 M，用波形写出来 ============ -->
+<svg class="variant" id="v-wavem" width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#plate)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#sheen)"/>
+  <path d="M48 176V104c0-18 26-18 26 0v40c0 16 24 16 24 0V84c0-20 30-20 30 0v60c0 16 24 16 24 0v-40c0-18 26-18 26 0v72"
+        fill="none" stroke="#2a1a04" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+
+<!-- ============ E. 生成：火花落下变成声音 ============ -->
+<svg class="variant" id="v-spark" width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#plate)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#sheen)"/>
+  <path d="M128 34l13.5 40.5L182 88l-40.5 13.5L128 142l-13.5-40.5L74 88l40.5-13.5z" fill="#2a1a04"/>
+  <g fill="#2a1a04" opacity="0.8">
+    <rect x="60"  y="180" width="20" height="26" rx="10"/>
+    <rect x="94"  y="166" width="20" height="54" rx="10"/>
+    <rect x="128" y="156" width="20" height="74" rx="10"/>
+    <rect x="162" y="170" width="20" height="46" rx="10"/>
+    <rect x="196" y="184" width="20" height="18" rx="10"/>
+  </g>
+</svg>
+
+<!-- ============ F. 当前版本（对照） ============ -->
+<svg class="variant" id="v-current" width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#plate)"/>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#sheen)"/>
+  <g fill="#2a1a04">
+    <rect x="150" y="52" width="17" height="118" rx="8"/>
+    <path d="M167 52c26 10 46 21 46 45 0 12-6 22-15 30 3-19-9-30-31-39z"/>
+    <ellipse cx="126" cy="176" rx="41" ry="32" transform="rotate(-20 126 176)"/>
+  </g>
+  <g fill="#2a1a04" opacity="0.55">
+    <rect x="44" y="150" width="13" height="30" rx="6"/>
+    <rect x="66" y="132" width="13" height="66" rx="6"/>
+    <rect x="88" y="158" width="13" height="22" rx="6"/>
+  </g>
+</svg>
+
+</body>
+</html>

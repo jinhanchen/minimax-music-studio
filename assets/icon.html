@@ -10,35 +10,44 @@
 </style>
 </head>
 <body>
+
+<!--
+  「生成火花」：上方火花 = AI 生成，下方频谱 = 音频输出。
+  语义正好是这个工具做的事：把一个想法变成声音。
+
+  小尺寸可读性是硬约束（任务栏 16px）：
+  - 频谱柱宽 28/256 ≈ 11% —— 16px 下约 1.8px，还能立住；
+    早期版本用 20 宽只有 1.25px，会碎成小点
+  - 火花占上半区且四角外扩，即使柱子糊了，整体轮廓仍认得出
+  - 只用两种元素、一个颜色，不靠细节支撑识别
+-->
 <svg id="icon" width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="plate" x1="0" y1="0" x2="0.6" y2="1">
-      <stop offset="0%"   stop-color="#ffc061"/>
+    <linearGradient id="plate" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0%"   stop-color="#ffc873"/>
       <stop offset="45%"  stop-color="#f0a53c"/>
-      <stop offset="100%" stop-color="#c06a15"/>
+      <stop offset="100%" stop-color="#bd6612"/>
     </linearGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.34"/>
-      <stop offset="55%"  stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
   </defs>
 
-  <!-- 底板：圆角方形，和工作台顶栏的 brand-mark 同一套琥珀渐变 -->
-  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#plate)"/>
-  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#sheen)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#plate)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#sheen)"/>
 
-  <!-- 八分音符：符干 + 符尾 + 符头。形状做粗，保证 16px 下还能认出来 -->
+  <!-- 火花：凹边四角星，比直线星形更精致 -->
+  <path d="M128 26 Q137 74 186 84 Q137 94 128 142 Q119 94 70 84 Q119 74 128 26 Z"
+        fill="#2a1a04"/>
+
+  <!-- 频谱：基线对齐 y=218，高度错落 -->
   <g fill="#2a1a04">
-    <rect x="150" y="52" width="17" height="118" rx="8"/>
-    <path d="M167 52c26 10 46 21 46 45 0 12-6 22-15 30 3-19-9-30-31-39z"/>
-    <ellipse cx="126" cy="176" rx="41" ry="32" transform="rotate(-20 126 176)"/>
-  </g>
-
-  <!-- 左下三根波形条，暗示"音频"而非单纯"音乐" -->
-  <g fill="#2a1a04" opacity="0.55">
-    <rect x="44"  y="150" width="13" height="30" rx="6"/>
-    <rect x="66"  y="132" width="13" height="66" rx="6"/>
-    <rect x="88"  y="158" width="13" height="22" rx="6"/>
+    <rect x="36"  y="192" width="28" height="26" rx="14"/>
+    <rect x="75"  y="172" width="28" height="46" rx="14"/>
+    <rect x="114" y="156" width="28" height="62" rx="14"/>
+    <rect x="153" y="178" width="28" height="40" rx="14"/>
+    <rect x="192" y="194" width="28" height="24" rx="14"/>
   </g>
 </svg>
 </body>
