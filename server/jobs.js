@@ -5,8 +5,11 @@
  * 必须由服务端做，不能挂在前端轮询上。服务重启后还要能把在途任务捡回来。
  */
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { COMFY_OUTPUT } from './config.js';
 import { buildWorkflow, SAVE_NODE_ID } from './workflow.js';
-import { estimateDuration } from './estimate.js';
+import { estimateDuration, calibrate } from './estimate.js';
+import { probeDuration } from './export-audio.js';
 import * as comfy from './comfy-api.js';
 import * as library from './library.js';
 
@@ -23,7 +26,10 @@ const watching = new Set();
 let modelsWarm = false;
 
 export async function submitJob(params) {
-  const estimate = estimateDuration(params.duration, !modelsWarm);
+  const estimate = estimateDuration(params.duration, {
+    coldStart: !modelsWarm,
+    calibration: calibrate(await library.listJobs()),
+  });
   const workflow = buildWorkflow({ ...params, filenamePrefix: 'audio/music3' });
 
   const res = await comfy.submitPrompt(workflow, CLIENT_ID);
@@ -161,15 +167,67 @@ async function finalize(jobId, entry) {
     return;
   }
 
+  const current = await library.getJob(jobId);
+  const info = {
+    filename: audio.filename,
+    subfolder: audio.subfolder ?? '',
+    type: audio.type ?? 'output',
+  };
+
   await library.updateJob(jobId, {
     status: 'done',
     finishedAt,
-    audio: {
-      filename: audio.filename,
-      subfolder: audio.subfolder ?? '',
-      type: audio.type ?? 'output',
-    },
+    audio: info,
+    // 这两个数是耗时预估自校准的原料：
+    // actualSec 决定真实 AR 步数（模型会提前收尾，不等于请求时长）
+    // computeSec 是纯生成耗时（不含排队）
+    actualSec: await measureAudioSeconds(info),
+    computeSec: computeSeconds(current, finishedAt),
   });
+}
+
+/** 纯生成耗时：从真正开始跑算起，排队等待不算 */
+function computeSeconds(job, finishedAt) {
+  const start = job?.startedAt ?? job?.createdAt;
+  if (!start) return null;
+  const sec = (new Date(finishedAt) - new Date(start)) / 1000;
+  return Number.isFinite(sec) && sec > 0 ? Math.round(sec * 100) / 100 : null;
+}
+
+/** 读实际输出时长；ffprobe 不在就返回 null，不影响主流程 */
+async function measureAudioSeconds(info) {
+  try {
+    const file = path.join(COMFY_OUTPUT, info.subfolder ?? '', info.filename);
+    return Math.round(await probeDuration(file) * 100) / 100;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 给历史任务补上 actualSec —— 老记录没有这两个字段，
+ * 不补的话自校准要等攒够新样本才生效。
+ */
+export async function backfillMeasurements() {
+  const all = await library.listJobs();
+  let filled = 0;
+  for (const job of all) {
+    if (job.status !== 'done' || !job.audio) continue;
+    const patch = {};
+    if (!Number.isFinite(job.actualSec)) {
+      const sec = await measureAudioSeconds(job.audio);
+      if (sec) patch.actualSec = sec;
+    }
+    if (!Number.isFinite(job.computeSec) && job.finishedAt) {
+      const sec = computeSeconds(job, job.finishedAt);
+      if (sec) patch.computeSec = sec;
+    }
+    if (Object.keys(patch).length) {
+      await library.updateJob(job.id, patch);
+      filled += 1;
+    }
+  }
+  return filled;
 }
 
 function extractError(status) {

@@ -13,6 +13,7 @@ import { Readable } from 'node:stream';
 import { PORT, COMFY_URL, COMFY_OUTPUT, MODELS, LIMITS, DEFAULTS } from './config.js';
 import { validateGenerateRequest, validateExportRequest, ValidationError } from './validate.js';
 import { exportWithDuration, FfmpegError } from './export-audio.js';
+import { calibrate } from './estimate.js';
 import { estimateDuration } from './estimate.js';
 import * as comfy from './comfy-api.js';
 import * as library from './library.js';
@@ -89,7 +90,12 @@ const routes = {
       throw new ValidationError('duration', 'duration 必须是数字');
     }
     const clamped = Math.min(LIMITS.maxDuration, Math.max(LIMITS.minDuration, duration));
-    return { status: 200, body: estimateDuration(clamped, Boolean(body?.coldStart)) };
+    // 每次都重新校准：用户跑得越多越准，不缓存
+    const calibration = calibrate(await library.listJobs());
+    return {
+      status: 200,
+      body: estimateDuration(clamped, { coldStart: Boolean(body?.coldStart), calibration }),
+    };
   },
 
   'GET /api/jobs': async () => ({ status: 200, body: { jobs: await library.listJobs() } }),
@@ -246,11 +252,23 @@ const resumed = await jobs.resumeUnfinished().catch((e) => {
   return 0;
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+// 老记录缺 actualSec/computeSec，补上耗时预估才有校准原料
+const backfilled = await jobs.backfillMeasurements().catch((e) => {
+  console.error('[server] 回填历史测量值失败:', e.message);
+  return 0;
+});
+
+server.listen(PORT, '127.0.0.1', async () => {
+  const cal = calibrate(await library.listJobs());
   console.log('');
   console.log('  MiniMax Music 3 工作台');
   console.log(`  → http://127.0.0.1:${PORT}`);
   console.log(`  ComfyUI: ${COMFY_URL}`);
   if (resumed > 0) console.log(`  已恢复 ${resumed} 个在途任务`);
+  if (backfilled > 0) console.log(`  已回填 ${backfilled} 条历史测量值`);
+  console.log(cal.calibrated
+    ? `  耗时预估已按本机 ${cal.sampleCount} 次实测校准：`
+      + `${cal.secPerStepFast.toFixed(3)}~${cal.secPerStepSlow.toFixed(3)} 秒/步`
+    : `  耗时预估用默认基准（本机实测 ${cal.sampleCount}/3 次）`);
   console.log('');
 });

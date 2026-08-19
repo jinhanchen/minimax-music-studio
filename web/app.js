@@ -144,7 +144,11 @@ function updateDurationUI() {
     try {
       const est = await api.estimate(sec, !state.everGenerated);
       el.etaValue.textContent = est.text;
-      el.etaNote.textContent = `自回归编码器 ${est.arSteps.toLocaleString()} 步`;
+      // 说清楚区间是怎么来的：步数区间反映"模型可能提前收尾"，
+      // basis 说明用的是本机实测还是默认值
+      el.etaNote.textContent =
+        `自回归 ${est.arStepsMin.toLocaleString()}~${est.arSteps.toLocaleString()} 步`
+        + `${est.coldStart ? ' · 含首次加载' : ''} · ${est.basis}`;
       el.eta.classList.toggle('eta-long', est.maxSec > 20 * 60);
       el.genEta.textContent = state.variants > 1
         ? `${state.variants} 个 · 单个${est.text}` : est.text;
